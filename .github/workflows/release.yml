@@ -4,6 +4,23 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+        default: 'auto'
+      dry_run:
+        description: 'Dry run (skip release creation)'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -42,9 +59,21 @@ jobs:
         PREV_REV=$(cz version --project)
         echo "Previous version: $PREV_REV"
 
-        # Run commitizen bump with changelog
+        # Determine bump command based on trigger type
+        BUMP_CMD="cz --no-raise 21 bump --yes --changelog"
+
+        # If manually triggered with specific bump type, use it
+        if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+          BUMP_TYPE="${{ github.event.inputs.bump_type }}"
+          if [[ "$BUMP_TYPE" != "auto" ]]; then
+            BUMP_CMD="cz bump --yes --changelog --increment $BUMP_TYPE"
+          fi
+          echo "Manual trigger with bump_type: $BUMP_TYPE"
+        fi
+
+        # Run commitizen bump
         # --no-raise 21: Don't fail on "No commits to bump" (exit code 21)
-        cz --no-raise 21 bump --yes --changelog
+        eval $BUMP_CMD
 
         # Get new version
         REV=$(cz version --project)
@@ -87,8 +116,12 @@ jobs:
           echo "Incremental changelog:"
           cat body.md
 
-          # Push commit and tags using authenticated URL
-          git push https://Divagnz:${{ secrets.RELEASE_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main --tags
+          # Push commit and tags using authenticated URL (skip if dry run)
+          if [[ "${{ github.event.inputs.dry_run }}" != "true" ]]; then
+            git push https://Divagnz:${{ secrets.RELEASE_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main --tags
+          else
+            echo "Dry run mode: skipping git push"
+          fi
         else
           echo "No version change, skipping release"
           echo "No changes" > body.md
@@ -104,11 +137,11 @@ jobs:
       run: uv python install 3.12
 
     - name: Build package
-      if: steps.cz.outputs.version_changed == 'true'
+      if: steps.cz.outputs.version_changed == 'true' && github.event.inputs.dry_run != 'true'
       run: uv build
 
     - name: Create GitHub Release
-      if: steps.cz.outputs.version_changed == 'true'
+      if: steps.cz.outputs.version_changed == 'true' && github.event.inputs.dry_run != 'true'
       uses: softprops/action-gh-release@6da8fa9354ddfdc4aeace5fc48d7f679b5214090 # v2.4.1
       with:
         body_path: body.md
