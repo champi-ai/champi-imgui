@@ -13,6 +13,6 @@ def test_version():
 
     # Check version follows semver pattern (major.minor.patch)
     semver_pattern = r"^\d+\.\d+\.\d+$"
-    assert re.match(
-        semver_pattern, __version__
-    ), f"Version '{__version__}' does not match semver format"
+    assert re.match(semver_pattern, __version__), (
+        f"Version '{__version__}' does not match semver format"
+    )
