@@ -1,8 +1,8 @@
 # Pre-commit hooks for code quality and conventional commits
 repos:
   # Conventional commits validation
-  - repo: https://github.com/compwa/commitizen-pre-commit-hook
-    rev: v3.0.0
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.2.0
     hooks:
       - id: commitizen
         name: Validate conventional commit message
@@ -18,14 +18,14 @@ repos:
       - id: ruff-format
         name: Run Ruff formatter
 
-  # MyPy for type checking
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.13.0
+  # MyPy for type checking (using local installation)
+  - repo: local
     hooks:
       - id: mypy
         name: Run MyPy type checker
-        additional_dependencies:
-          - types-all
+        entry: uv run mypy
+        language: system
+        types: [python]
         args: [--config-file=pyproject.toml]
 
   # Detect secrets

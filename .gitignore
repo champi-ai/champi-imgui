@@ -181,7 +181,7 @@ workflow.db
 */.ipynb_checkpoints/*
 
 # Pre-commit
-.secrets.baseline
+# .secrets.baseline - DO NOT IGNORE, this file should be committed
 
 # UV package manager
 .uv_cache/
