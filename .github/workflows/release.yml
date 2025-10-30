@@ -59,14 +59,27 @@ jobs:
         PREV_REV=$(cz version --project)
         echo "Previous version: $PREV_REV"
 
-        # Determine bump command based on trigger type
-        BUMP_CMD="cz --no-raise 21 bump --yes --changelog"
+        # Check if there are any tags (for first release handling)
+        TAG_COUNT=$(git tag | wc -l)
+        echo "Existing tags: $TAG_COUNT"
+
+        # Determine bump command based on trigger type and tag existence
+        if [[ "$TAG_COUNT" -eq 0 ]]; then
+          # First release - don't use --changelog to avoid "no tag found" error
+          BUMP_CMD="cz --no-raise 21 bump --yes"
+        else
+          BUMP_CMD="cz --no-raise 21 bump --yes --changelog"
+        fi
 
         # If manually triggered with specific bump type, use it
         if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
           BUMP_TYPE="${{ github.event.inputs.bump_type }}"
           if [[ "$BUMP_TYPE" != "auto" ]]; then
-            BUMP_CMD="cz bump --yes --changelog --increment $BUMP_TYPE"
+            if [[ "$TAG_COUNT" -eq 0 ]]; then
+              BUMP_CMD="cz --no-raise 21 bump --yes --increment $BUMP_TYPE"
+            else
+              BUMP_CMD="cz --no-raise 21 bump --yes --changelog --increment $BUMP_TYPE"
+            fi
           fi
           echo "Manual trigger with bump_type: $BUMP_TYPE"
         fi
