@@ -4,6 +4,7 @@
 
 # Claude workspace
 .claude/
+CLAUDE.md
 
 # MCP configuration
 .mcp/
@@ -151,6 +152,9 @@ docs/mcp_champi-brand/
 # Local configuration
 .claude/settings.local.json
 *.local
+
+# Development aid files
+CLAUDE.md
 
 # Node modules (for any JS tooling)
 node_modules/
