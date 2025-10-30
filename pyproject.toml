@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "champi-imgui"
-version = "0.0.2"
+version = "0.0.3"
 description = "MCP server for generative UI through ImGui and Python"
 readme = "README.md"
 license = {text = "MIT"}
@@ -194,7 +194,7 @@ exclude_lines = [
 # Commitizen configuration for conventional commits and semantic versioning
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.0.2"
+version = "0.0.3"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
