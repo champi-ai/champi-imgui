@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test on Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.12', '3.13']
+
+    steps:
+    - name: Check out
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
+
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: uv sync --all-extras --dev
+
+    - name: Run ruff check
+      run: uv run ruff check .
+
+    - name: Run ruff format check
+      run: uv run ruff format --check .
+
+    - name: Run mypy
+      run: uv run mypy src
+
+    - name: Run tests
+      run: uv run pytest
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check out
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+    - name: Set up Python
+      uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+      with:
+        python-version: '3.12'
+
+    - name: Install detect-secrets
+      run: pip install detect-secrets
+
+    - name: Run detect-secrets scan
+      run: |
+        detect-secrets scan --baseline .secrets.baseline
+        if [ $? -ne 0 ]; then
+          echo "⚠️ Potential secrets detected! Please review the findings."
+          exit 1
+        fi

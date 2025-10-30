@@ -1,0 +1,215 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "champi-imgui"
+version = "0.0.1"
+description = "MCP server for generative UI through ImGui and Python"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.12"
+authors = [
+    {name = "Divagnz", email = "oscar.liguori.bagnis@gmail.com"}
+]
+keywords = ["mcp", "imgui", "generative-ui", "llm", "ui", "imgui-bundle"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: User Interfaces",
+]
+
+dependencies = [
+    # Core dependencies
+    "fastmcp>=2.12.0",
+    "imgui-bundle>=1.5.0",
+    "pyglm>=2.7.0",
+    "loguru>=0.7.0",
+    "blinker>=1.9.0",
+
+    # Utility
+    "typing-extensions>=4.0.0",
+    "pydantic>=2.0.0",
+]
+
+[project.optional-dependencies]
+# Development tools
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.8.0",
+    "mypy>=1.8.0",
+    "pre-commit>=3.0.0",
+    "commitizen>=3.0.0",
+    "detect-secrets>=1.4.0",
+]
+
+# All features
+all = [
+    "champi-imgui[dev]",
+]
+
+[project.urls]
+Homepage = "https://github.com/champi-ai/champi-imgui"
+Repository = "https://github.com/champi-ai/champi-imgui"
+Issues = "https://github.com/champi-ai/champi-imgui/issues"
+Documentation = "https://github.com/champi-ai/champi-imgui/blob/main/README.md"
+
+[project.scripts]
+champi-imgui = "champi_imgui.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/champi_imgui"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+# UV configuration
+[tool.uv]
+package = true
+no-build-isolation = false
+managed = true
+
+# Ruff configuration
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+indent-width = 4
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # Pyflakes
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "I",    # isort
+    "N",    # pep8-naming
+    "C90",  # mccabe
+    "RUF",  # Ruff-specific rules
+]
+
+ignore = [
+    "E501",  # line too long, handled by formatter
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+    "RUF012", # Mutable class attributes should be annotated with `typing.ClassVar`
+]
+
+fixable = ["ALL"]
+unfixable = []
+
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/**/*.py" = [
+    "S101", # asserts allowed in tests
+    "ARG",  # Unused function args
+    "FBT",  # Boolean positional args
+    "PLR2004", # Magic values
+    "S311", # Pseudo-random generators
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["champi_imgui"]
+
+# MyPy configuration
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "imgui_bundle.*",
+    "pyglm.*",
+]
+ignore_missing_imports = true
+
+# Pytest configuration
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+    "--cov=champi_imgui",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+]
+asyncio_mode = "auto"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "visual: marks tests requiring visual verification",
+]
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["src"]
+branch = true
+omit = [
+    "*/tests/*",
+    "*/examples/*",
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+
+# Commitizen configuration for conventional commits and semantic versioning
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.0.1"
+tag_format = "v$version"
+version_files = [
+    "pyproject.toml:version",
+    "src/champi_imgui/__init__.py:__version__"
+]
+update_changelog_on_bump = true
+changelog_file = "CHANGELOG.md"
+changelog_incremental = true
+changelog_start_rev = "v0.0.0"
+changelog_merge_prerelease = true
+bump_message = "bump: version $current_version → $new_version"
+
+# Bandit security linting configuration
+[tool.bandit]
+exclude_dirs = ["tests", "examples", ".venv", "venv"]
+skips = ["B101", "B601"]
+# B101: assert_used (allowed in tests)
+# B601: paramiko_calls (not applicable)

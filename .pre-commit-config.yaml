@@ -1,0 +1,50 @@
+# Pre-commit hooks for code quality and conventional commits
+repos:
+  # Conventional commits validation
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.2.0
+    hooks:
+      - id: commitizen
+        name: Validate conventional commit message
+        stages: [commit-msg]
+
+  # Ruff for linting and formatting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+        name: Run Ruff linter
+      - id: ruff-format
+        name: Run Ruff formatter
+
+  # MyPy for type checking (using local installation)
+  - repo: local
+    hooks:
+      - id: mypy
+        name: Run MyPy type checker
+        entry: uv run mypy
+        language: system
+        types: [python]
+        args: [--config-file=pyproject.toml]
+
+  # Detect secrets
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        name: Detect secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: package.lock.json
+
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+      - id: check-toml

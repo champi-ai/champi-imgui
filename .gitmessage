@@ -1,0 +1,24 @@
+# <type>(<scope>): <subject>
+#
+# <body>
+#
+# <footer>
+
+# Type: feat, fix, docs, style, refactor, test, chore, ci
+# Scope: Optional, indicates the area of change (e.g., ui, api, docs)
+# Subject: Short summary (50 chars or less)
+#
+# Body: Detailed explanation (wrap at 72 chars)
+#   - Why the change was made
+#   - What problem it solves
+#
+# Footer: Breaking changes, issue references
+#   BREAKING CHANGE: Description of breaking change
+#   Fixes #123
+#   Closes #456
+#
+# Examples:
+# feat(canvas): add support for docking mode
+# fix(widgets): correct button click detection
+# docs(readme): update installation instructions
+# BREAKING CHANGE: Canvas API now requires explicit mode parameter

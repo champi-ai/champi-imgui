@@ -1,0 +1,185 @@
+name: Rollback Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_tag:
+        description: 'Version tag to rollback (e.g., v0.1.0)'
+        required: true
+        type: string
+      confirm_rollback:
+        description: 'I confirm this rollback (required)'
+        required: true
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Dry run (preview changes without applying)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  rollback:
+    name: Rollback release ${{ github.event.inputs.version_tag }}
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Validate confirmation
+      run: |
+        if [[ "${{ github.event.inputs.confirm_rollback }}" != "true" ]]; then
+          echo "❌ Rollback not confirmed. Please check the confirmation box."
+          exit 1
+        fi
+        echo "✅ Rollback confirmed"
+
+    - name: Check out
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.RELEASE_TOKEN }}
+
+    - name: Configure Git
+      run: |
+        git config --local user.name "Divagnz"
+        git config --local user.email "oscar.liguori.bagnis@gmail.com"
+
+    - name: Set up Python
+      uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+      with:
+        python-version: '3.12'
+
+    - name: Install commitizen
+      run: pip install commitizen
+
+    - name: Validate version tag
+      id: validate
+      run: |
+        TAG="${{ github.event.inputs.version_tag }}"
+        echo "Validating tag: $TAG"
+
+        # Check if tag exists locally
+        if ! git tag | grep -q "^${TAG}$"; then
+          echo "❌ Tag $TAG does not exist locally"
+          exit 1
+        fi
+
+        # Check if tag exists on remote
+        if ! git ls-remote --tags origin | grep -q "refs/tags/${TAG}$"; then
+          echo "⚠️ Tag $TAG does not exist on remote (already deleted?)"
+        else
+          echo "✅ Tag $TAG exists on remote"
+        fi
+
+        echo "tag=${TAG}" >> $GITHUB_OUTPUT
+
+    - name: Find bump commit
+      id: find_commit
+      run: |
+        TAG="${{ steps.validate.outputs.tag }}"
+
+        # Find the commit associated with this tag
+        COMMIT=$(git rev-list -n 1 "$TAG" 2>/dev/null || echo "")
+
+        if [[ -z "$COMMIT" ]]; then
+          echo "❌ Could not find commit for tag $TAG"
+          exit 1
+        fi
+
+        echo "Found commit: $COMMIT"
+        echo "Commit message:"
+        git log --format=%B -n 1 "$COMMIT"
+
+        # Verify this looks like a bump commit
+        if ! git log --format=%B -n 1 "$COMMIT" | grep -qE "^bump:"; then
+          echo "⚠️ Warning: Commit does not appear to be a bump commit"
+          echo "Commit message should start with 'bump:'"
+        fi
+
+        echo "commit=$COMMIT" >> $GITHUB_OUTPUT
+
+    - name: Delete GitHub Release
+      continue-on-error: true
+      run: |
+        TAG="${{ steps.validate.outputs.tag }}"
+
+        if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
+          echo "🔍 DRY RUN: Would delete GitHub release for $TAG"
+        else
+          echo "Deleting GitHub release for $TAG..."
+          gh release delete "$TAG" --yes --cleanup-tag || echo "Release might not exist or already deleted"
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Delete Git Tag
+      run: |
+        TAG="${{ steps.validate.outputs.tag }}"
+
+        if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
+          echo "🔍 DRY RUN: Would delete local tag $TAG"
+          echo "🔍 DRY RUN: Would delete remote tag $TAG"
+        else
+          # Delete local tag
+          echo "Deleting local tag $TAG..."
+          git tag -d "$TAG" || echo "Local tag might not exist"
+
+          # Delete remote tag
+          echo "Deleting remote tag $TAG..."
+          git push --delete origin "$TAG" 2>&1 || echo "Remote tag might not exist or already deleted"
+        fi
+
+    - name: Revert bump commit
+      run: |
+        COMMIT="${{ steps.find_commit.outputs.commit }}"
+        TAG="${{ steps.validate.outputs.tag }}"
+
+        if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
+          echo "🔍 DRY RUN: Would revert commit $COMMIT"
+          echo "🔍 DRY RUN: Revert commit message would be:"
+          echo "revert: rollback version $TAG"
+          echo ""
+          echo "Files that would be reverted:"
+          git show --name-only --format="" "$COMMIT"
+        else
+          echo "Reverting commit $COMMIT..."
+          git revert "$COMMIT" --no-edit -m "revert: rollback version $TAG" || {
+            echo "❌ Revert failed. This might require manual intervention."
+            echo "Possible reasons:"
+            echo "  - Conflicting changes since the bump"
+            echo "  - Multiple parent commits (merge commit)"
+            exit 1
+          }
+        fi
+
+    - name: Push changes
+      if: github.event.inputs.dry_run != 'true'
+      run: |
+        echo "Pushing revert commit to main..."
+        git push https://Divagnz:${{ secrets.RELEASE_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main
+
+    - name: Get current version
+      id: current_version
+      run: |
+        # Get version after rollback
+        CURRENT_VERSION=$(cz version --project)
+        echo "current_version=${CURRENT_VERSION}" >> $GITHUB_OUTPUT
+        echo "Current version after rollback: $CURRENT_VERSION"
+
+    - name: Summary
+      run: |
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "📋 Rollback Summary"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
+          echo "🔍 DRY RUN MODE - No actual changes were made"
+          echo ""
+        fi
+        echo "✅ Rolled back tag: ${{ steps.validate.outputs.tag }}"
+        echo "✅ Reverted commit: ${{ steps.find_commit.outputs.commit }}"
+        echo "✅ Current version: ${{ steps.current_version.outputs.current_version }}"
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
