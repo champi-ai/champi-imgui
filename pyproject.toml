@@ -203,7 +203,6 @@ version_files = [
 update_changelog_on_bump = true
 changelog_file = "CHANGELOG.md"
 changelog_incremental = true
-changelog_start_rev = "v0.0.0"
 changelog_merge_prerelease = true
 bump_message = "bump: version $current_version → $new_version"
 
