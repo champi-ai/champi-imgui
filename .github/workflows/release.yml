@@ -78,7 +78,7 @@ jobs:
         # Get new version
         REV=$(cz version --project)
         echo "New version: $REV"
-        echo "version=v${REV}" >> $GITHUB_OUTPUT
+        echo "version=${REV}" >> $GITHUB_OUTPUT
 
         # Store whether version changed for later steps
         if [[ "$REV" != "$PREV_REV" ]]; then
