@@ -222,6 +222,9 @@ skips = ["B101", "B601"]
 dev = [
     "mypy>=1.18.2",
     "pre-commit>=4.3.0",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.0.0",
 ]
 # B101: assert_used (allowed in tests)
 # B601: paramiko_calls (not applicable)
