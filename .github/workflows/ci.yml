@@ -41,8 +41,6 @@ jobs:
     - name: Run tests with coverage
       run: uv run pytest
 
-        git push https://Divagnz:${{ secrets.RELEASE_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main
-
   security:
     name: Security Scan
     runs-on: self-hosted
