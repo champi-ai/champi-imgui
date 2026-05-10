@@ -5,6 +5,9 @@ This package contains all widget implementations organized by category:
 - input: Advanced input widgets (combos, lists, etc.)
 - color: Color picker and editor widgets
 - progress: Progress bars and loading indicators
+- display: Display and visualization widgets (plot lines, colored text, etc.)
+- container: Layout containers (windows, groups, tabs, etc.)
+- slider: Numeric slider and drag controls
 """
 
 from champi_imgui.widgets.basic import (
@@ -28,6 +31,21 @@ from champi_imgui.widgets.color import (
     ColorEdit4Widget,
     ColorPicker3Widget,
     ColorPickerWidget,
+)
+from champi_imgui.widgets.container import (
+    ChildWindowWidget,
+    CollapsingHeaderWidget,
+    DummyWidget,
+    GroupWidget,
+    SeparatorWidget,
+    SpacingWidget,
+    TabBarWidget,
+    TabItemWidget,
+    WindowWidget,
+)
+from champi_imgui.widgets.display import (
+    HelpMarkerWidget,
+    PlotLinesWidget,
 )
 from champi_imgui.widgets.input import (
     CheckboxFlagsWidget,
@@ -59,6 +77,8 @@ __all__ = [
     "ButtonWidget",
     "CheckboxFlagsWidget",
     "CheckboxWidget",
+    "ChildWindowWidget",
+    "CollapsingHeaderWidget",
     "ColorButtonWidget",
     "ColorEdit3Widget",
     "ColorEdit4Widget",
@@ -67,6 +87,9 @@ __all__ = [
     "ComboWidget",
     "DragFloatWidget",
     "DragIntWidget",
+    "DummyWidget",
+    "GroupWidget",
+    "HelpMarkerWidget",
     "InputDoubleWidget",
     "InputFloatWidget",
     "InputIntWidget",
@@ -76,15 +99,21 @@ __all__ = [
     "LabelTextWidget",
     "ListBoxWidget",
     "LoadingIndicatorWidget",
+    "PlotLinesWidget",
     "ProgressBarWidget",
     "RadioButtonWidget",
     "SelectableWidget",
+    "SeparatorWidget",
     "SliderFloatWidget",
     "SliderIntWidget",
     "SmallButtonWidget",
+    "SpacingWidget",
     "StatusBarWidget",
+    "TabBarWidget",
+    "TabItemWidget",
     "TextColoredWidget",
     "TextDisabledWidget",
     "TextWidget",
     "TextWrappedWidget",
+    "WindowWidget",
 ]
