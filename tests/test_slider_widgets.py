@@ -36,7 +36,9 @@ def test_slider_int_widget_creation():
 
 def test_slider_int_widget_with_custom_values():
     """Test SliderIntWidget with custom values."""
-    widget = SliderIntWidget("slider-int-2", label="Volume", value=50, v_min=0, v_max=200)
+    widget = SliderIntWidget(
+        "slider-int-2", label="Volume", value=50, v_min=0, v_max=200
+    )
 
     assert widget.state.properties["label"] == "Volume"
     assert widget.state.properties["value"] == 50
