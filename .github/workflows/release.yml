@@ -24,6 +24,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: read
 
 jobs:
   release:
@@ -40,10 +41,8 @@ jobs:
 
     - name: Authenticate git and fetch full history
       run: |
-        git remote set-url origin https://Divagnz:${{ secrets.RELEASE_TOKEN }}@github.com/${{ github.repository }}.git
+        git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
         git fetch --unshallow --tags
-        echo "https://Divagnz:${{ secrets.RELEASE_TOKEN }}@github.com" > ~/.git-credentials
-        git config --global credential.helper store
 
     - name: Install uv for commitizen
       uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
@@ -136,7 +135,7 @@ jobs:
 
           # Push commit and tags using authenticated URL (skip if dry run)
           if [[ "${{ github.event.inputs.dry_run }}" != "true" ]]; then
-            git push https://Divagnz:${{ secrets.RELEASE_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main --tags
+            git push origin HEAD:main --tags
           else
             echo "Dry run mode: skipping git push"
           fi
