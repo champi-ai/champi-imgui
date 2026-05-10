@@ -57,7 +57,7 @@ jobs:
         COVERAGE=$(python -c "
         import xml.etree.ElementTree as ET
         root = ET.parse('coverage.xml').getroot()
-        print(int(float(root.attrib['line-rate']) * 100))
+        print(round(float(root.attrib['line-rate']) * 100))
         ")
         THRESHOLD=$(grep -oP '(?<=--cov-fail-under=)\d+' pyproject.toml)
         echo "Coverage: $COVERAGE%, threshold: $THRESHOLD%"
