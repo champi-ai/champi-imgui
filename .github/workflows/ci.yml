@@ -53,9 +53,9 @@ jobs:
         uv run genbadge coverage -i coverage.xml -o badges/coverage.svg
 
         COVERAGE=$(uv run python -c "
-        import xml.etree.ElementTree as ET
+        import math, xml.etree.ElementTree as ET
         root = ET.parse('coverage.xml').getroot()
-        print(round(float(root.attrib['line-rate']) * 100))
+        print(math.floor(float(root.attrib['line-rate']) * 100))
         ")
         THRESHOLD=$(grep -oP '(?<=--cov-fail-under=)\d+' pyproject.toml)
         echo "Coverage: $COVERAGE%, threshold: $THRESHOLD%"
