@@ -41,6 +41,37 @@ jobs:
     - name: Run tests with coverage
       run: uv run pytest
 
+    - name: Generate coverage badge
+      if: matrix.python-version == '3.12'
+      run: |
+        mkdir -p badges
+        uv run genbadge coverage -i coverage.xml -o badges/coverage.svg
+
+    - name: Ratchet coverage threshold
+      if: matrix.python-version == '3.12'
+      run: |
+        COVERAGE=$(uv run python -c "
+        import xml.etree.ElementTree as ET
+        root = ET.parse('coverage.xml').getroot()
+        print(round(float(root.attrib['line-rate']) * 100))
+        ")
+        THRESHOLD=$(grep -oP '(?<=--cov-fail-under=)\d+' pyproject.toml)
+        echo "Coverage: $COVERAGE%, threshold: $THRESHOLD%"
+        if [ "$COVERAGE" -gt "$THRESHOLD" ]; then
+          sed -i "s/--cov-fail-under=$THRESHOLD/--cov-fail-under=$COVERAGE/" pyproject.toml
+          echo "Bumped threshold $THRESHOLD → $COVERAGE"
+        fi
+
+    - name: Commit badge and threshold to PR branch
+      if: matrix.python-version == '3.12'
+      run: |
+        git config --local user.name "Divagnz"
+        git config --local user.email "oscar.liguori.bagnis@gmail.com"
+        git remote set-url origin https://Divagnz:${{ secrets.RELEASE_TOKEN }}@github.com/${{ github.repository }}.git
+        git add badges/coverage.svg pyproject.toml
+        git diff --staged --quiet || git commit -m "chore: update coverage badge and threshold"
+        git push origin HEAD:${{ github.head_ref }}
+
   security:
     name: Security Scan
     runs-on: self-hosted
