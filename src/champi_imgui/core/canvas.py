@@ -11,6 +11,7 @@ from imgui_bundle import hello_imgui, imgui
 from loguru import logger
 
 from champi_imgui.core.state import CanvasState
+from champi_imgui.core.widget import Widget, WidgetRegistry
 from champi_imgui.ipc.command_types import CommandType
 from champi_imgui.ipc.shared_memory_manager import SharedMemoryManager
 
@@ -31,6 +32,7 @@ class Canvas:
         """
         self.state = CanvasState(canvas_id=canvas_id, **kwargs)
         self.shm_manager = SharedMemoryManager(name_prefix=f"canvas_{canvas_id}")
+        self.widget_registry = WidgetRegistry()
 
         # Thread control
         self._running = False
@@ -68,6 +70,35 @@ class Canvas:
 
         # Cleanup shared memory
         self.shm_manager.cleanup()
+
+    def add_widget(self, widget: Widget) -> None:
+        """Add a widget to the canvas registry.
+
+        Thread-safe: may be called from any thread.
+
+        Args:
+            widget: Widget instance to add
+        """
+        self.widget_registry.add(widget)
+        logger.debug(
+            f"Added widget '{widget.widget_id}' to canvas '{self.state.canvas_id}'"
+        )
+
+    def remove_widget(self, widget_id: str) -> bool:
+        """Remove a widget from the canvas registry.
+
+        Args:
+            widget_id: Identifier of the widget to remove
+
+        Returns:
+            True if removed, False if not found
+        """
+        removed = self.widget_registry.remove(widget_id)
+        if removed:
+            logger.debug(
+                f"Removed widget '{widget_id}' from canvas '{self.state.canvas_id}'"
+            )
+        return removed
 
     def _render_loop(self) -> None:
         """Main render loop (runs in background thread).
@@ -109,11 +140,12 @@ class Canvas:
             flags=imgui.WindowFlags_.no_collapse,
         )
 
-        # Placeholder content for Stage 5
-        imgui.text(f"Canvas ID: {self.state.canvas_id}")
-        imgui.text(f"Size: {self.state.size[0]} x {self.state.size[1]}")
-        imgui.separator()
-        imgui.text("Ready for widgets (Stage 6)")
+        # Render all registered widgets
+        for widget in self.widget_registry.get_all().values():
+            try:
+                widget.render()
+            except Exception as e:
+                logger.error(f"Error rendering widget '{widget.widget_id}': {e}")
 
         imgui.end()
 
@@ -137,6 +169,8 @@ class Canvas:
                     self._handle_update_state(command_data.data)
                 elif command_data.command_type == CommandType.SHUTDOWN:
                     self._handle_shutdown(command_data.data)
+                elif command_data.command_type == CommandType.REMOVE_WIDGET:
+                    self._handle_remove_widget(command_data.data)
                 else:
                     logger.warning(
                         f"Unknown command type: {command_data.command_type.name}"
@@ -158,8 +192,8 @@ class Canvas:
             )
             return
 
+        self.widget_registry.clear()
         logger.info(f"Clearing canvas '{canvas_id}'")
-        # Stage 6 will implement actual widget clearing
 
     def _handle_update_state(self, data: dict[str, Any]) -> None:
         """Handle UPDATE_STATE command."""
@@ -177,6 +211,19 @@ class Canvas:
             self.state.size = (data["width"], data["height"])
 
         logger.info(f"Updated state for canvas '{canvas_id}'")
+
+    def _handle_remove_widget(self, data: dict[str, Any]) -> None:
+        """Handle REMOVE_WIDGET command."""
+        canvas_id = data.get("canvas_id")
+        if canvas_id != self.state.canvas_id:
+            logger.warning(
+                f"Remove widget command for wrong canvas: {canvas_id} (expected {self.state.canvas_id})"
+            )
+            return
+
+        widget_id = data.get("widget_id", "")
+        self.widget_registry.remove(widget_id)
+        logger.info(f"Removed widget '{widget_id}' from canvas '{canvas_id}'")
 
     def _handle_shutdown(self, data: dict[str, Any]) -> None:
         """Handle SHUTDOWN command."""
