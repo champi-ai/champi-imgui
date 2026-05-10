@@ -71,10 +71,9 @@ jobs:
 
         # Determine bump command based on trigger type and tag existence
         if [[ "$TAG_COUNT" -eq 0 ]]; then
-          # First release - don't use --changelog to avoid "no tag found" error
-          BUMP_CMD="cz --no-raise 21,7 bump --yes"
+          BUMP_CMD="cz --no-raise 21,7,16 bump --yes"
         else
-          BUMP_CMD="cz --no-raise 21,7 bump --yes --changelog"
+          BUMP_CMD="cz --no-raise 21,7,16 bump --yes --changelog"
         fi
 
         # If manually triggered with specific bump type, use it
@@ -82,9 +81,9 @@ jobs:
           BUMP_TYPE="${{ github.event.inputs.bump_type }}"
           if [[ "$BUMP_TYPE" != "auto" ]]; then
             if [[ "$TAG_COUNT" -eq 0 ]]; then
-              BUMP_CMD="cz --no-raise 21,7 bump --yes --increment $BUMP_TYPE"
+              BUMP_CMD="cz --no-raise 21,7,16 bump --yes --increment $BUMP_TYPE"
             else
-              BUMP_CMD="cz --no-raise 21,7 bump --yes --changelog --increment $BUMP_TYPE"
+              BUMP_CMD="cz --no-raise 21,7,16 bump --yes --changelog --increment $BUMP_TYPE"
             fi
           fi
           echo "Manual trigger with bump_type: $BUMP_TYPE"
