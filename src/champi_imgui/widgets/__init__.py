@@ -45,23 +45,28 @@ from champi_imgui.widgets.progress import (
     ProgressBarWidget,
     StatusBarWidget,
 )
+from champi_imgui.widgets.slider import (
+    DragFloatWidget,
+    DragIntWidget,
+    SliderFloatWidget,
+    SliderIntWidget,
+)
 
 __all__ = [
-    # Basic widgets
     "ArrowButtonWidget",
     "BulletTextWidget",
     "BulletWidget",
     "ButtonWidget",
-    # Input widgets
     "CheckboxFlagsWidget",
     "CheckboxWidget",
-    # Color widgets
     "ColorButtonWidget",
     "ColorEdit3Widget",
     "ColorEdit4Widget",
     "ColorPicker3Widget",
     "ColorPickerWidget",
     "ComboWidget",
+    "DragFloatWidget",
+    "DragIntWidget",
     "InputDoubleWidget",
     "InputFloatWidget",
     "InputIntWidget",
@@ -70,11 +75,12 @@ __all__ = [
     "InvisibleButtonWidget",
     "LabelTextWidget",
     "ListBoxWidget",
-    # Progress widgets
     "LoadingIndicatorWidget",
     "ProgressBarWidget",
     "RadioButtonWidget",
     "SelectableWidget",
+    "SliderFloatWidget",
+    "SliderIntWidget",
     "SmallButtonWidget",
     "StatusBarWidget",
     "TextColoredWidget",
