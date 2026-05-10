@@ -74,7 +74,7 @@ jobs:
         git config --local user.email "oscar.liguori.bagnis@gmail.com"
         git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
         git add badges/coverage.svg pyproject.toml
-        git diff --staged --quiet || git commit -m "chore: update coverage badge and threshold"
+        git diff --staged --quiet || git commit -m "chore: update coverage badge and threshold [skip ci]"
         git push origin HEAD:${{ github.head_ref }}
 
   security:
