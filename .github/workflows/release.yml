@@ -136,6 +136,8 @@ jobs:
           cat body.md
 
           if [[ "${{ github.event.inputs.dry_run }}" != "true" ]]; then
+            git fetch origin main
+            git rebase origin/main
             git push origin HEAD:main --tags
           else
             echo "Dry run mode: skipping push"
