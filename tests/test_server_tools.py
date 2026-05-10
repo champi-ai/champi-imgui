@@ -4,6 +4,7 @@ Tests call tool functions directly via FunctionTool.fn against a real
 CanvasManager with auto_start=False (no ImGui render thread required).
 """
 
+import contextlib
 import uuid
 
 import pytest
@@ -26,10 +27,8 @@ def fresh_canvas_manager(monkeypatch):
     server.canvas_manager = manager
     yield manager
     for canvas in list(manager.canvases.values()):
-        try:
+        with contextlib.suppress(Exception):
             canvas.shm_manager.cleanup()
-        except Exception:
-            pass
     server.canvas_manager = original
 
 
