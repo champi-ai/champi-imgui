@@ -42,6 +42,7 @@ jobs:
       run: |
         git remote set-url origin https://Divagnz:${{ secrets.RELEASE_TOKEN }}@github.com/${{ github.repository }}.git
         git fetch --unshallow --tags
+        git config --local url."https://Divagnz:${{ secrets.RELEASE_TOKEN }}@github.com/".insteadOf "https://github.com/"
 
     - name: Install uv for commitizen
       uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0

@@ -54,7 +54,7 @@ jobs:
     - name: Ratchet coverage threshold
       if: matrix.python-version == '3.12' && github.ref == 'refs/heads/main'
       run: |
-        COVERAGE=$(python -c "
+        COVERAGE=$(uv run python -c "
         import xml.etree.ElementTree as ET
         root = ET.parse('coverage.xml').getroot()
         print(round(float(root.attrib['line-rate']) * 100))
