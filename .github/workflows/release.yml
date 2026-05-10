@@ -24,7 +24,7 @@ on:
 
 permissions:
   contents: write
-  pull-requests: read
+  pull-requests: write
 
 jobs:
   release:
@@ -58,6 +58,8 @@ jobs:
 
     - name: Run commitizen bump
       id: cz
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         # Get previous version
         PREV_REV=$(cz version --project)
@@ -133,11 +135,22 @@ jobs:
           echo "Incremental changelog:"
           cat body.md
 
-          # Push commit and tags using authenticated URL (skip if dry run)
+          # Push tag directly (tags are not protected)
           if [[ "${{ github.event.inputs.dry_run }}" != "true" ]]; then
-            git push origin HEAD:main --tags
+            git push origin --tags
+
+            # Open a PR for the bump commit so branch protection is satisfied
+            BRANCH="release/v${REV}"
+            git checkout -b "$BRANCH"
+            git push origin "$BRANCH"
+            gh pr create \
+              --title "bump: version $PREV_REV → $REV" \
+              --body "$(cat body.md)" \
+              --base main \
+              --head "$BRANCH" \
+              --label "release"
           else
-            echo "Dry run mode: skipping git push"
+            echo "Dry run mode: skipping push and PR"
           fi
         else
           echo "No version change, skipping release"
