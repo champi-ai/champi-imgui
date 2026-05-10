@@ -1,18 +1,16 @@
 name: CI
 
 on:
-  push:
-    branches: [ main ]
   pull_request:
     branches: [ main ]
 
-permissions:
-  contents: write
 
 jobs:
   test:
     name: Test on Python ${{ matrix.python-version }}
     runs-on: self-hosted
+    permissions:
+      contents: write
     strategy:
       matrix:
         python-version: ['3.12', '3.13']
@@ -20,6 +18,9 @@ jobs:
     steps:
     - name: Check out
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      with:
+        ref: ${{ github.head_ref }}
+        persist-credentials: false
 
     - name: Clean up virtualenv
       run: rm -rf .venv
@@ -45,20 +46,13 @@ jobs:
     - name: Run tests with coverage
       run: uv run pytest
 
-    - name: Generate coverage badge
-      if: matrix.python-version == '3.12' && github.ref == 'refs/heads/main'
+    - name: Update coverage badge and ratchet threshold
+      if: matrix.python-version == '3.12'
       run: |
         mkdir -p badges
         uv run genbadge coverage -i coverage.xml -o badges/coverage.svg
 
-    - name: Ratchet coverage threshold
-      if: matrix.python-version == '3.12' && github.ref == 'refs/heads/main'
-      run: |
-        COVERAGE=$(uv run python -c "
-        import xml.etree.ElementTree as ET
-        root = ET.parse('coverage.xml').getroot()
-        print(round(float(root.attrib['line-rate']) * 100))
-        ")
+        COVERAGE=$(uv run coverage report | tail -1 | awk '{gsub(/%/,""); print int($NF) - 1}')
         THRESHOLD=$(grep -oP '(?<=--cov-fail-under=)\d+' pyproject.toml)
         echo "Coverage: $COVERAGE%, threshold: $THRESHOLD%"
         if [ "$COVERAGE" -gt "$THRESHOLD" ]; then
@@ -66,14 +60,18 @@ jobs:
           echo "Bumped threshold $THRESHOLD → $COVERAGE"
         fi
 
-    - name: Commit coverage badge and threshold
-      if: matrix.python-version == '3.12' && github.ref == 'refs/heads/main'
-      run: |
         git config --local user.name "Divagnz"
         git config --local user.email "oscar.liguori.bagnis@gmail.com"
+        git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+
+        git stash
+        git fetch origin ${{ github.head_ref }}
+        git reset --hard origin/${{ github.head_ref }}
+        git stash pop
+
         git add badges/coverage.svg pyproject.toml
-        git diff --staged --quiet || git commit -m "chore: update coverage badge and threshold"
-        git push https://Divagnz:${{ secrets.RELEASE_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main
+        git diff --staged --quiet || git commit -m "chore: update coverage badge and threshold [skip ci]"
+        git push origin HEAD:${{ github.head_ref }}
 
   security:
     name: Security Scan
