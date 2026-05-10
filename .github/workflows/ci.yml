@@ -1,13 +1,9 @@
 name: CI
 
 on:
-  push:
-    branches: [ main ]
   pull_request:
     branches: [ main ]
 
-permissions:
-  contents: write
 
 jobs:
   test:
@@ -45,34 +41,6 @@ jobs:
     - name: Run tests with coverage
       run: uv run pytest
 
-    - name: Generate coverage badge
-      if: matrix.python-version == '3.12' && github.ref == 'refs/heads/main'
-      run: |
-        mkdir -p badges
-        uv run genbadge coverage -i coverage.xml -o badges/coverage.svg
-
-    - name: Ratchet coverage threshold
-      if: matrix.python-version == '3.12' && github.ref == 'refs/heads/main'
-      run: |
-        COVERAGE=$(uv run python -c "
-        import xml.etree.ElementTree as ET
-        root = ET.parse('coverage.xml').getroot()
-        print(round(float(root.attrib['line-rate']) * 100))
-        ")
-        THRESHOLD=$(grep -oP '(?<=--cov-fail-under=)\d+' pyproject.toml)
-        echo "Coverage: $COVERAGE%, threshold: $THRESHOLD%"
-        if [ "$COVERAGE" -gt "$THRESHOLD" ]; then
-          sed -i "s/--cov-fail-under=$THRESHOLD/--cov-fail-under=$COVERAGE/" pyproject.toml
-          echo "Bumped threshold $THRESHOLD → $COVERAGE"
-        fi
-
-    - name: Commit coverage badge and threshold
-      if: matrix.python-version == '3.12' && github.ref == 'refs/heads/main'
-      run: |
-        git config --local user.name "Divagnz"
-        git config --local user.email "oscar.liguori.bagnis@gmail.com"
-        git add badges/coverage.svg pyproject.toml
-        git diff --staged --quiet || git commit -m "chore: update coverage badge and threshold"
         git push https://Divagnz:${{ secrets.RELEASE_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main
 
   security:
