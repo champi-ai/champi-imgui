@@ -144,8 +144,15 @@ strict_equality = true
 module = [
     "imgui_bundle.*",
     "pyglm.*",
+    "champi_gen_ui.*",
+    "pytest",
+    "_pytest.*",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["examples.*"]
+ignore_errors = true
 
 # Pytest configuration
 [tool.pytest.ini_options]
@@ -210,5 +217,14 @@ bump_message = "bump: version $current_version → $new_version"
 [tool.bandit]
 exclude_dirs = ["tests", "examples", ".venv", "venv"]
 skips = ["B101", "B601"]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.18.2",
+    "pre-commit>=4.3.0",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.0.0",
+]
 # B101: assert_used (allowed in tests)
 # B601: paramiko_calls (not applicable)
