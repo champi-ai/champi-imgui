@@ -38,13 +38,11 @@ jobs:
         fetch-depth: 0
         token: ${{ secrets.RELEASE_TOKEN }}
 
-    - name: Set up Python
-      uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
-      with:
-        python-version: '3.12'
+    - name: Install uv for commitizen
+      uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
 
     - name: Install commitizen
-      run: pip install commitizen
+      run: uv tool install commitizen
 
     - name: Configure Git
       run: |
@@ -142,9 +140,6 @@ jobs:
 
     - name: Print Version
       run: echo "Bumped to version ${{ steps.cz.outputs.version }}"
-
-    - name: Install uv
-      uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
 
     - name: Set up Python for build
       run: uv python install 3.12
