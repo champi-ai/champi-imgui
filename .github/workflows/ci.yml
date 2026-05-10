@@ -9,6 +9,8 @@ jobs:
   test:
     name: Test on Python ${{ matrix.python-version }}
     runs-on: self-hosted
+    permissions:
+      contents: write
     strategy:
       matrix:
         python-version: ['3.12', '3.13']
@@ -69,7 +71,7 @@ jobs:
       run: |
         git config --local user.name "Divagnz"
         git config --local user.email "oscar.liguori.bagnis@gmail.com"
-        git remote set-url origin https://Divagnz:${{ secrets.RELEASE_TOKEN }}@github.com/${{ github.repository }}.git
+        git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
         git add badges/coverage.svg pyproject.toml
         git diff --staged --quiet || git commit -m "chore: update coverage badge and threshold"
         git push origin HEAD:${{ github.head_ref }}
