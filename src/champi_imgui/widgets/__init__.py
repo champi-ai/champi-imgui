@@ -8,6 +8,8 @@ This package contains all widget implementations organized by category:
 - display: Display and visualization widgets (plot lines, colored text, etc.)
 - container: Layout containers (windows, groups, tabs, etc.)
 - slider: Numeric slider and drag controls
+- menu: Menu and navigation widgets (menu bar, menus, tree nodes, etc.)
+- plotting: Advanced plotting widgets using ImPlot
 """
 
 from champi_imgui.widgets.basic import (
@@ -58,6 +60,25 @@ from champi_imgui.widgets.input import (
     RadioButtonWidget,
     SelectableWidget,
 )
+from champi_imgui.widgets.menu import (
+    ContextMenuWidget,
+    MenuBarWidget,
+    MenuItemWidget,
+    MenuWidget,
+    PopupWidget,
+    TooltipWidget,
+    TreeNodeWidget,
+)
+from champi_imgui.widgets.plotting import (
+    BarChartWidget,
+    ErrorBarsWidget,
+    HeatmapWidget,
+    HistogramWidget,
+    LineChartWidget,
+    PieChartWidget,
+    RealtimePlotWidget,
+    ScatterPlotWidget,
+)
 from champi_imgui.widgets.progress import (
     LoadingIndicatorWidget,
     ProgressBarWidget,
@@ -72,6 +93,7 @@ from champi_imgui.widgets.slider import (
 
 __all__ = [
     "ArrowButtonWidget",
+    "BarChartWidget",
     "BulletTextWidget",
     "BulletWidget",
     "ButtonWidget",
@@ -85,11 +107,15 @@ __all__ = [
     "ColorPicker3Widget",
     "ColorPickerWidget",
     "ComboWidget",
+    "ContextMenuWidget",
     "DragFloatWidget",
     "DragIntWidget",
     "DummyWidget",
+    "ErrorBarsWidget",
     "GroupWidget",
+    "HeatmapWidget",
     "HelpMarkerWidget",
+    "HistogramWidget",
     "InputDoubleWidget",
     "InputFloatWidget",
     "InputIntWidget",
@@ -97,11 +123,19 @@ __all__ = [
     "InputTextWidget",
     "InvisibleButtonWidget",
     "LabelTextWidget",
+    "LineChartWidget",
     "ListBoxWidget",
     "LoadingIndicatorWidget",
+    "MenuBarWidget",
+    "MenuItemWidget",
+    "MenuWidget",
+    "PieChartWidget",
     "PlotLinesWidget",
+    "PopupWidget",
     "ProgressBarWidget",
     "RadioButtonWidget",
+    "RealtimePlotWidget",
+    "ScatterPlotWidget",
     "SelectableWidget",
     "SeparatorWidget",
     "SliderFloatWidget",
@@ -115,5 +149,7 @@ __all__ = [
     "TextDisabledWidget",
     "TextWidget",
     "TextWrappedWidget",
+    "TooltipWidget",
+    "TreeNodeWidget",
     "WindowWidget",
 ]
