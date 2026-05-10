@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   test:
@@ -42,8 +42,23 @@ jobs:
     - name: Run mypy
       run: uv run mypy src
 
-    - name: Run tests
+    - name: Run tests with coverage
       run: uv run pytest
+
+    - name: Generate coverage badge
+      if: matrix.python-version == '3.12' && github.ref == 'refs/heads/main'
+      run: |
+        mkdir -p badges
+        uv run genbadge coverage -i coverage.xml -o badges/coverage.svg
+
+    - name: Commit coverage badge
+      if: matrix.python-version == '3.12' && github.ref == 'refs/heads/main'
+      run: |
+        git config --local user.name "Divagnz"
+        git config --local user.email "oscar.liguori.bagnis@gmail.com"
+        git add badges/coverage.svg
+        git diff --staged --quiet || git commit -m "chore: update coverage badge"
+        git push https://Divagnz:${{ secrets.RELEASE_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main
 
   security:
     name: Security Scan

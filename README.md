@@ -8,6 +8,7 @@ An MCP (Model Context Protocol) server that enables Large Language Models to cre
 [![FastMCP](https://img.shields.io/badge/FastMCP-2.0+-green.svg)](https://github.com/jlowin/fastmcp)
 [![ImGui Bundle](https://img.shields.io/badge/ImGui-Bundle-red.svg)](https://github.com/pthom/imgui_bundle)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Coverage](badges/coverage.svg)](badges/coverage.svg)
 
 ---
 
