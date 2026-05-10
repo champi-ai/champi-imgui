@@ -52,11 +52,7 @@ jobs:
         mkdir -p badges
         uv run genbadge coverage -i coverage.xml -o badges/coverage.svg
 
-        COVERAGE=$(uv run python -c "
-        import math, xml.etree.ElementTree as ET
-        root = ET.parse('coverage.xml').getroot()
-        print(math.floor(float(root.attrib['line-rate']) * 100) - 1)
-        ")
+        COVERAGE=$(uv run coverage report | tail -1 | awk '{gsub(/%/,""); print int($NF) - 1}')
         THRESHOLD=$(grep -oP '(?<=--cov-fail-under=)\d+' pyproject.toml)
         echo "Coverage: $COVERAGE%, threshold: $THRESHOLD%"
         if [ "$COVERAGE" -gt "$THRESHOLD" ]; then
