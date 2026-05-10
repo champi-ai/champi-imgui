@@ -47,6 +47,7 @@ dev = [
     "pre-commit>=3.0.0",
     "commitizen>=3.0.0",
     "detect-secrets>=1.4.0",
+    "genbadge[coverage]>=1.1.0",
 ]
 
 # All features
@@ -166,7 +167,9 @@ addopts = [
     "--tb=short",
     "--cov=champi_imgui",
     "--cov-report=term-missing",
+    "--cov-report=xml",
     "--cov-report=html",
+    "--cov-fail-under=55",
 ]
 asyncio_mode = "auto"
 markers = [
