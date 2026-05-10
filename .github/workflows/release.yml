@@ -91,7 +91,9 @@ jobs:
         fi
 
         # Run commitizen bump
-        # --no-raise 21: Don't fail on "No commits to bump" (exit code 21)
+        # --no-raise 21: No commits to bump
+        # --no-raise 7:  Tag already exists (retry scenario)
+        BUMP_CMD="${BUMP_CMD} --no-raise 7"
         eval $BUMP_CMD
 
         # Get new version
@@ -135,20 +137,21 @@ jobs:
           echo "Incremental changelog:"
           cat body.md
 
-          # Push tag directly (tags are not protected)
+          # Push tag directly (tags are not protected), skip if already exists
           if [[ "${{ github.event.inputs.dry_run }}" != "true" ]]; then
-            git push origin --tags
+            git push origin --tags --no-verify 2>/dev/null || true
+            git push origin "refs/tags/v${REV}:refs/tags/v${REV}" 2>/dev/null || echo "Tag v${REV} already on remote, skipping"
 
-            # Open a PR for the bump commit so branch protection is satisfied
+            # Open a PR for the bump commit (skip if PR already exists)
             BRANCH="release/v${REV}"
-            git checkout -b "$BRANCH"
-            git push origin "$BRANCH"
+            git checkout -b "$BRANCH" 2>/dev/null || git checkout "$BRANCH"
+            git push origin "$BRANCH" --force-with-lease
             gh pr create \
               --title "bump: version $PREV_REV → $REV" \
               --body "$(cat body.md)" \
               --base main \
               --head "$BRANCH" \
-              --label "release"
+              --label "release" 2>/dev/null || echo "PR already exists for $BRANCH"
           else
             echo "Dry run mode: skipping push and PR"
           fi
