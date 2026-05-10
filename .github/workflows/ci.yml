@@ -12,7 +12,7 @@ permissions:
 jobs:
   test:
     name: Test on Python ${{ matrix.python-version }}
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     strategy:
       matrix:
         python-version: ['3.12', '3.13']
@@ -44,7 +44,7 @@ jobs:
 
   security:
     name: Security Scan
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
     - name: Check out
