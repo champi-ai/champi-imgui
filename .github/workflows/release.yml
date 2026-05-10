@@ -70,28 +70,19 @@ jobs:
         echo "Existing tags: $TAG_COUNT"
 
         # Determine bump command based on trigger type and tag existence
-        if [[ "$TAG_COUNT" -eq 0 ]]; then
-          BUMP_CMD="cz --no-raise 21,7,16 bump --yes"
-        else
-          BUMP_CMD="cz --no-raise 21,7,16 bump --yes --changelog"
-        fi
+        BUMP_CMD="cz --no-raise 21,7,16 bump --yes"
 
         # If manually triggered with specific bump type, use it
         if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
           BUMP_TYPE="${{ github.event.inputs.bump_type }}"
           if [[ "$BUMP_TYPE" != "auto" ]]; then
-            if [[ "$TAG_COUNT" -eq 0 ]]; then
-              BUMP_CMD="cz --no-raise 21,7,16 bump --yes --increment $BUMP_TYPE"
-            else
-              BUMP_CMD="cz --no-raise 21,7,16 bump --yes --changelog --increment $BUMP_TYPE"
-            fi
+            BUMP_CMD="cz --no-raise 21,7,16 bump --yes --increment $BUMP_TYPE"
           fi
           echo "Manual trigger with bump_type: $BUMP_TYPE"
         fi
 
-        # Run commitizen bump
-        # --no-raise 21,7: No commits to bump / tag already exists (retry)
         eval $BUMP_CMD
+        cz --no-raise 16 changelog --unreleased-version "v${REV}" 2>/dev/null || true
 
         # Get new version
         REV=$(cz version --project)
