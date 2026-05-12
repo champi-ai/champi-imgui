@@ -4,7 +4,7 @@
       "command": "uvx",
       "args": [
         "--from",
-        "https://github.com/champi-ai/champi-imgui/releases/download/v1.2.1/champi_imgui-1.2.1-py3-none-any.whl",
+        "https://github.com/champi-ai/champi-imgui/releases/download/v1.2.0/champi_imgui-1.2.0-py3-none-any.whl",
         "champi-imgui",
         "serve"
       ]
