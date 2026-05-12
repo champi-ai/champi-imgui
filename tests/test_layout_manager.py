@@ -1,8 +1,6 @@
 """Tests for LayoutManager and AutoLayout."""
 
-from unittest.mock import call, patch
-
-import pytest
+from unittest.mock import patch
 
 from champi_imgui.layout.manager import AutoLayout, LayoutManager, LayoutMode
 
@@ -134,8 +132,10 @@ class TestAutoLayout:
     def test_context_manager(self) -> None:
         manager = LayoutManager()
         original_mode = manager.mode
-        with patch.object(manager, "begin_layout") as mock_begin, \
-             patch.object(manager, "end_layout") as mock_end:
+        with (
+            patch.object(manager, "begin_layout") as mock_begin,
+            patch.object(manager, "end_layout") as mock_end,
+        ):
             with AutoLayout(manager, LayoutMode.HORIZONTAL) as m:
                 assert m is manager
                 assert manager.mode == LayoutMode.HORIZONTAL

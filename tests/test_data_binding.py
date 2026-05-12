@@ -2,9 +2,11 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from champi_imgui.core.binding import BindingConfig, BindingManager, DataStore, ValidationManager
+from champi_imgui.core.binding import (
+    BindingManager,
+    DataStore,
+    ValidationManager,
+)
 
 
 class TestDataStore:
@@ -125,7 +127,10 @@ class TestBindingManager:
     def test_bind_with_transform(self) -> None:
         store = DataStore()
         bm = BindingManager(store)
-        transform = lambda x: x * 2
+
+        def transform(x: object) -> object:
+            return x  # type: ignore[operator]
+
         bm.bind("val", "widget", "prop", transform=transform)
         cfg = bm.bindings["val"][0]
         assert cfg.transform is transform

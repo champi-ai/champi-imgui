@@ -2,8 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from champi_imgui.extensions.file_dialog import (
     FileDialog,
     FileDialogMode,
@@ -36,7 +34,9 @@ class TestFileDialog:
     def test_open_file_creates_dialog(self) -> None:
         fd = FileDialog()
         mock_dialog = MagicMock()
-        with patch("champi_imgui.extensions.file_dialog.portable_file_dialogs") as mock_pfd:
+        with patch(
+            "champi_imgui.extensions.file_dialog.portable_file_dialogs"
+        ) as mock_pfd:
             mock_pfd.open_file.return_value = mock_dialog
             mock_pfd.opt.none = 0
             fd.open_file(title="Test")
@@ -45,7 +45,9 @@ class TestFileDialog:
 
     def test_open_file_exception_handled(self) -> None:
         fd = FileDialog()
-        with patch("champi_imgui.extensions.file_dialog.portable_file_dialogs") as mock_pfd:
+        with patch(
+            "champi_imgui.extensions.file_dialog.portable_file_dialogs"
+        ) as mock_pfd:
             mock_pfd.open_file.side_effect = RuntimeError("no display")
             fd.open_file()
         assert fd.current_dialog is None
@@ -112,21 +114,29 @@ class TestFileDialogWidget:
 
 class TestMessageDialog:
     def test_info(self) -> None:
-        with patch("champi_imgui.extensions.file_dialog.portable_file_dialogs") as mock_pfd:
+        with patch(
+            "champi_imgui.extensions.file_dialog.portable_file_dialogs"
+        ) as mock_pfd:
             MessageDialog.info("Title", "Message")
             mock_pfd.message.assert_called_once()
 
     def test_warning(self) -> None:
-        with patch("champi_imgui.extensions.file_dialog.portable_file_dialogs") as mock_pfd:
+        with patch(
+            "champi_imgui.extensions.file_dialog.portable_file_dialogs"
+        ) as mock_pfd:
             MessageDialog.warning("Title", "Message")
             mock_pfd.message.assert_called_once()
 
     def test_error(self) -> None:
-        with patch("champi_imgui.extensions.file_dialog.portable_file_dialogs") as mock_pfd:
+        with patch(
+            "champi_imgui.extensions.file_dialog.portable_file_dialogs"
+        ) as mock_pfd:
             MessageDialog.error("Title", "Message")
             mock_pfd.message.assert_called_once()
 
     def test_exception_handled(self) -> None:
-        with patch("champi_imgui.extensions.file_dialog.portable_file_dialogs") as mock_pfd:
+        with patch(
+            "champi_imgui.extensions.file_dialog.portable_file_dialogs"
+        ) as mock_pfd:
             mock_pfd.message.side_effect = RuntimeError("no display")
             MessageDialog.info("T", "M")  # should not raise

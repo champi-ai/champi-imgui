@@ -5,7 +5,6 @@ from unittest.mock import patch
 import pytest
 
 from champi_imgui.extensions.animation import (
-    Animation,
     AnimationManager,
     AnimationState,
     EasingFunction,

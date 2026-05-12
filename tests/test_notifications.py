@@ -2,8 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from champi_imgui.extensions.notification import (
     Notification,
     NotificationManager,
@@ -93,7 +91,9 @@ class TestNotificationManager:
             manager.add("T", "M", NotificationType.INFO, duration=1.0)
             # Advance time past duration
             mock_imgui.get_time.return_value = 5.0
-            mock_imgui.get_main_viewport.return_value = MagicMock(size=MagicMock(x=1920, y=1080))
+            mock_imgui.get_main_viewport.return_value = MagicMock(
+                size=MagicMock(x=1920, y=1080)
+            )
             manager.render()
         assert len(manager.notifications) == 0
 
@@ -103,6 +103,8 @@ class TestNotificationManager:
             mock_imgui.get_time.return_value = 0.0
             manager.add("T", "M", NotificationType.INFO, duration=0)  # persistent
             mock_imgui.get_time.return_value = 1000.0
-            mock_imgui.get_main_viewport.return_value = MagicMock(size=MagicMock(x=1920, y=1080))
+            mock_imgui.get_main_viewport.return_value = MagicMock(
+                size=MagicMock(x=1920, y=1080)
+            )
             manager.render()
         assert len(manager.notifications) == 1

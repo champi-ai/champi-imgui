@@ -1,8 +1,6 @@
 """Tests for ThemeManager and ThemeColors/ThemeStyle dataclasses."""
 
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from champi_imgui.themes.manager import (
     ColorScheme,
@@ -11,7 +9,11 @@ from champi_imgui.themes.manager import (
     ThemeManager,
     ThemeStyle,
 )
-from champi_imgui.themes.presets import THEME_PRESETS, create_dark_theme, create_nord_theme
+from champi_imgui.themes.presets import (
+    THEME_PRESETS,
+    create_dark_theme,
+    create_nord_theme,
+)
 
 
 class TestThemeColors:
@@ -95,7 +97,10 @@ class TestThemeManager:
     def test_apply_theme_sets_current(self) -> None:
         manager = ThemeManager()
         theme = Theme(name="Test")
-        with patch.object(manager, "_apply_colors"), patch.object(manager, "_apply_style"):
+        with (
+            patch.object(manager, "_apply_colors"),
+            patch.object(manager, "_apply_style"),
+        ):
             manager.apply_theme(theme)
         assert manager.current_theme is theme
 
@@ -117,7 +122,17 @@ class TestThemePresets:
         assert len(THEME_PRESETS) == 9
 
     def test_preset_keys(self) -> None:
-        expected = {"dark", "light", "cherry", "nord", "dracula", "gruvbox", "solarized_dark", "monokai", "material"}
+        expected = {
+            "dark",
+            "light",
+            "cherry",
+            "nord",
+            "dracula",
+            "gruvbox",
+            "solarized_dark",
+            "monokai",
+            "material",
+        }
         assert set(THEME_PRESETS.keys()) == expected
 
     def test_dark_theme_name(self) -> None:
