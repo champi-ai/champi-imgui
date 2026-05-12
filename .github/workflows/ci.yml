@@ -69,10 +69,10 @@ jobs:
         git config --local user.email "oscar.liguori.bagnis@gmail.com"
         git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
 
-        git stash
+        STASH_RESULT=$(git stash)
         git fetch origin ${{ github.head_ref }}
         git reset --hard origin/${{ github.head_ref }}
-        git stash pop
+        echo "$STASH_RESULT" | grep -q "^No local changes" || git stash pop
 
         git add badges/coverage.svg pyproject.toml
         git diff --staged --quiet || git commit -m "chore: update coverage badge and threshold"
