@@ -11,6 +11,8 @@ from loguru import logger
 
 from champi_imgui.core.binding import BindingManager, DataStore
 from champi_imgui.core.canvas import CanvasManager
+from champi_imgui.core.codegen import CodeGenerator, TemplateCodeGenerator
+from champi_imgui.core.serialization import TemplateManager, UIExporter, UIImporter
 from champi_imgui.extensions.animation import AnimationManager, EasingFunction
 from champi_imgui.extensions.file_dialog import (
     FileDialogMode,
@@ -112,6 +114,7 @@ data_store = DataStore()
 binding_manager = BindingManager(data_store)
 animation_manager = AnimationManager()
 notification_manager = NotificationManager()
+template_manager = TemplateManager()
 
 # Register preset themes at startup
 for _theme in THEME_PRESETS.values():
@@ -2668,4 +2671,244 @@ def show_message_dialog(
         return {"success": True, "data": {"title": title, "type": dialog_type}}
     except Exception as e:
         logger.error(f"Error showing message dialog: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: Serialization, Code Generation, Templates
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+def export_canvas_json(canvas_id: str, filepath: str) -> dict[str, Any]:
+    """Export a canvas to a JSON file.
+
+    Args:
+        canvas_id: Canvas identifier
+        filepath: Destination file path (absolute or relative to cwd)
+
+    Returns:
+        Success status
+    """
+    try:
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if not canvas:
+            return {"success": False, "error": f"Canvas '{canvas_id}' not found"}
+        ok = UIExporter.export_to_json(canvas, filepath)
+        return {"success": ok, "data": {"filepath": filepath}}
+    except Exception as e:
+        logger.error(f"Error exporting canvas '{canvas_id}' to JSON: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def export_canvas_python(canvas_id: str, filepath: str) -> dict[str, Any]:
+    """Export a canvas as a standalone Python script.
+
+    Args:
+        canvas_id: Canvas identifier
+        filepath: Destination .py file path (must be writable)
+
+    Returns:
+        Success status
+    """
+    try:
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if not canvas:
+            return {"success": False, "error": f"Canvas '{canvas_id}' not found"}
+        code = CodeGenerator.generate_canvas_code(canvas)
+        with open(filepath, "w") as f:
+            f.write(code)
+        logger.info(f"Exported canvas '{canvas_id}' Python code to {filepath}")
+        return {"success": True, "data": {"filepath": filepath}}
+    except OSError as e:
+        logger.error(f"Cannot write to {filepath}: {e}")
+        return {"success": False, "error": f"Cannot write to {filepath}: {e}"}
+    except Exception as e:
+        logger.error(f"Error exporting canvas '{canvas_id}' to Python: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def import_canvas_json(filepath: str) -> dict[str, Any]:
+    """Import a canvas from a JSON file.
+
+    Args:
+        filepath: Source JSON file path
+
+    Returns:
+        Newly created canvas state
+    """
+    try:
+        canvas = UIImporter.import_from_json(filepath, canvas_manager)
+        if not canvas:
+            return {"success": False, "error": f"Failed to import from '{filepath}'"}
+        return {"success": True, "data": canvas.state.to_dict()}
+    except Exception as e:
+        logger.error(f"Error importing canvas from '{filepath}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def get_canvas_json(canvas_id: str) -> dict[str, Any]:
+    """Return the JSON representation of a canvas as a string (no file written).
+
+    Args:
+        canvas_id: Canvas identifier
+
+    Returns:
+        JSON string in data.json
+    """
+    try:
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if not canvas:
+            return {"success": False, "error": f"Canvas '{canvas_id}' not found"}
+        json_str = UIExporter.export_canvas_state(canvas)
+        return {"success": True, "data": {"json": json_str}}
+    except Exception as e:
+        logger.error(f"Error serializing canvas '{canvas_id}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def generate_canvas_code(canvas_id: str) -> dict[str, Any]:
+    """Generate Python code for a canvas and return it as a string.
+
+    Args:
+        canvas_id: Canvas identifier
+
+    Returns:
+        Generated Python code in data.code
+    """
+    try:
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if not canvas:
+            return {"success": False, "error": f"Canvas '{canvas_id}' not found"}
+        code = CodeGenerator.generate_canvas_code(canvas)
+        return {"success": True, "data": {"code": code}}
+    except Exception as e:
+        logger.error(f"Error generating code for canvas '{canvas_id}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def generate_widget_snippet(
+    widget_type: str,
+    widget_id: str,
+) -> dict[str, Any]:
+    """Generate a single-line Python widget construction snippet.
+
+    Args:
+        widget_type: Widget class name (e.g. ButtonWidget)
+        widget_id: Widget identifier
+
+    Returns:
+        Code snippet string in data.snippet
+    """
+    try:
+        snippet = CodeGenerator.generate_widget_code_snippet(widget_type, widget_id)
+        return {"success": True, "data": {"snippet": snippet}}
+    except Exception as e:
+        logger.error(f"Error generating widget snippet: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def generate_component_template(name: str, widgets: list[str]) -> dict[str, Any]:
+    """Generate a reusable Python component class for a set of widget types.
+
+    Args:
+        name: Component name (snake_case, e.g. my_panel)
+        widgets: List of widget class names to include
+
+    Returns:
+        Generated class code in data.code
+    """
+    try:
+        code = TemplateCodeGenerator.generate_component_template(name, widgets)
+        return {"success": True, "data": {"code": code}}
+    except Exception as e:
+        logger.error(f"Error generating component template '{name}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def save_template(
+    name: str,
+    canvas_id: str,
+    description: str = "",
+) -> dict[str, Any]:
+    """Save a canvas as a named template.
+
+    Templates are stored in ~/.champi-imgui/templates/<name>.json.
+
+    Args:
+        name: Template name
+        canvas_id: Canvas to save
+        description: Optional description
+
+    Returns:
+        Success status
+    """
+    try:
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if not canvas:
+            return {"success": False, "error": f"Canvas '{canvas_id}' not found"}
+        ok = template_manager.save_template(name, canvas, description)
+        return {"success": ok, "data": {"name": name}}
+    except Exception as e:
+        logger.error(f"Error saving template '{name}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def load_template(name: str) -> dict[str, Any]:
+    """Load a template and create a new canvas from it.
+
+    Args:
+        name: Template name
+
+    Returns:
+        Newly created canvas state
+    """
+    try:
+        canvas = template_manager.load_template(name, canvas_manager)
+        if not canvas:
+            return {"success": False, "error": f"Template '{name}' not found"}
+        return {"success": True, "data": canvas.state.to_dict()}
+    except Exception as e:
+        logger.error(f"Error loading template '{name}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def list_templates() -> dict[str, Any]:
+    """List all available UI templates.
+
+    Returns:
+        List of templates with name and description
+    """
+    try:
+        templates = template_manager.list_templates()
+        return {"success": True, "data": {"templates": templates}}
+    except Exception as e:
+        logger.error(f"Error listing templates: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def delete_template(name: str) -> dict[str, Any]:
+    """Delete a saved template.
+
+    Args:
+        name: Template name
+
+    Returns:
+        Success status
+    """
+    try:
+        ok = template_manager.delete_template(name)
+        return {"success": ok, "data": {"name": name}}
+    except Exception as e:
+        logger.error(f"Error deleting template '{name}': {e}")
         return {"success": False, "error": str(e)}
