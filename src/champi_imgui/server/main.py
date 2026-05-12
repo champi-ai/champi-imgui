@@ -9,9 +9,20 @@ from typing import Any
 from fastmcp import FastMCP
 from loguru import logger
 
+from champi_imgui.core.binding import BindingManager, DataStore
 from champi_imgui.core.canvas import CanvasManager
+from champi_imgui.extensions.animation import AnimationManager, EasingFunction
+from champi_imgui.extensions.file_dialog import (
+    FileDialogMode,
+    FileDialogWidget,
+    MessageDialog,
+)
+from champi_imgui.extensions.notification import NotificationManager, NotificationType
 from champi_imgui.ipc.command_types import CommandType
 from champi_imgui.ipc.shared_memory_manager import SharedMemoryManager
+from champi_imgui.layout.manager import LayoutManager, LayoutMode
+from champi_imgui.themes.manager import ThemeManager
+from champi_imgui.themes.presets import THEME_PRESETS
 from champi_imgui.widgets.basic import (
     ArrowButtonWidget,
     BulletTextWidget,
@@ -93,6 +104,18 @@ from champi_imgui.widgets.slider import (
 
 # Global canvas manager (single instance for all MCP tool calls)
 canvas_manager = CanvasManager()
+
+# Phase 3: Advanced feature managers
+theme_manager = ThemeManager()
+layout_manager = LayoutManager()
+data_store = DataStore()
+binding_manager = BindingManager(data_store)
+animation_manager = AnimationManager()
+notification_manager = NotificationManager()
+
+# Register preset themes at startup
+for _theme in THEME_PRESETS.values():
+    theme_manager.register_theme(_theme)
 
 # FastMCP server instance
 mcp = FastMCP("champi-imgui")
@@ -2204,4 +2227,445 @@ def add_error_bars(
         return _create_widget_in_canvas(canvas_id, widget)
     except Exception as e:
         logger.error(f"Error adding error bars '{widget_id}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ==============================================================================
+# Phase 3: Theme tools
+# ==============================================================================
+
+
+@mcp.tool()
+def apply_theme(theme_name: str) -> dict[str, Any]:
+    """Apply a named theme to the ImGui style.
+
+    Theme must be applied from the render thread — if a canvas is running this
+    enqueues the call; otherwise it is applied immediately (no canvas context).
+
+    Args:
+        theme_name: One of: dark, light, cherry, nord, dracula, gruvbox,
+                    solarized_dark, monokai, material (case-insensitive)
+
+    Returns:
+        Success status and applied theme name
+    """
+    try:
+        key = theme_name.lower()
+        if not theme_manager.apply_theme_by_name(key):
+            available = theme_manager.list_themes()
+            return {
+                "success": False,
+                "error": f"Theme '{theme_name}' not found. Available: {available}",
+            }
+        return {"success": True, "data": {"theme": key}}
+    except Exception as e:
+        logger.error(f"Error applying theme '{theme_name}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def list_themes() -> dict[str, Any]:
+    """List all registered theme names.
+
+    Returns:
+        Success status and list of theme name strings
+    """
+    try:
+        return {"success": True, "data": {"themes": theme_manager.list_themes()}}
+    except Exception as e:
+        logger.error(f"Error listing themes: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ==============================================================================
+# Phase 3: Layout tools
+# ==============================================================================
+
+
+@mcp.tool()
+def set_layout_mode(mode: str) -> dict[str, Any]:
+    """Set the global layout mode for widget arrangement.
+
+    Args:
+        mode: One of: horizontal, vertical, grid, stack, free
+
+    Returns:
+        Success status and applied mode
+    """
+    try:
+        try:
+            layout_mode = LayoutMode(mode.lower())
+        except ValueError:
+            valid = [m.value for m in LayoutMode]
+            return {"success": False, "error": f"Invalid mode '{mode}'. Valid: {valid}"}
+        layout_manager.set_mode(layout_mode)
+        return {"success": True, "data": {"mode": mode}}
+    except Exception as e:
+        logger.error(f"Error setting layout mode '{mode}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def set_layout_spacing(spacing: float) -> dict[str, Any]:
+    """Set the spacing between widgets in the current layout.
+
+    Args:
+        spacing: Spacing in pixels (>= 0)
+
+    Returns:
+        Success status and applied spacing
+    """
+    try:
+        layout_manager.set_spacing(max(0.0, spacing))
+        return {"success": True, "data": {"spacing": spacing}}
+    except Exception as e:
+        logger.error(f"Error setting layout spacing: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ==============================================================================
+# Phase 3: Notification tools
+# ==============================================================================
+
+
+@mcp.tool()
+def show_notification(
+    title: str,
+    message: str,
+    type: str = "info",
+    duration: float = 3.0,
+) -> dict[str, Any]:
+    """Show a toast notification overlay.
+
+    Args:
+        title: Notification title
+        message: Notification body text
+        type: One of: info, success, warning, error
+        duration: Display duration in seconds (0 for persistent)
+
+    Returns:
+        Success status
+    """
+    try:
+        try:
+            ntype = NotificationType(type.lower())
+        except ValueError:
+            valid = [t.value for t in NotificationType]
+            return {"success": False, "error": f"Invalid type '{type}'. Valid: {valid}"}
+        notification_manager.add(title, message, ntype, duration)
+        return {"success": True, "data": {"title": title, "type": type}}
+    except Exception as e:
+        logger.error(f"Error showing notification: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def clear_notifications() -> dict[str, Any]:
+    """Clear all active notifications.
+
+    Returns:
+        Success status
+    """
+    try:
+        notification_manager.clear_all()
+        return {"success": True, "data": {}}
+    except Exception as e:
+        logger.error(f"Error clearing notifications: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ==============================================================================
+# Phase 3: Animation tools
+# ==============================================================================
+
+
+@mcp.tool()
+def create_animation(
+    name: str,
+    start_value: float,
+    end_value: float,
+    duration: float,
+    easing: str = "linear",
+    loop: bool = False,
+) -> dict[str, Any]:
+    """Create a named animation for smooth value interpolation.
+
+    Args:
+        name: Unique animation name
+        start_value: Starting numeric value
+        end_value: Ending numeric value
+        duration: Animation duration in seconds
+        easing: Easing function name (linear, ease_in_quad, ease_out_quad,
+                ease_in_out_quad, ease_in_cubic, ease_out_cubic, ease_in_out_cubic,
+                ease_in_sine, ease_out_sine, ease_in_out_sine, ease_in_expo,
+                ease_out_expo, ease_in_out_expo, bounce, elastic)
+        loop: Whether the animation should loop
+
+    Returns:
+        Success status and animation name
+    """
+    try:
+        try:
+            easing_fn = EasingFunction(easing.lower())
+        except ValueError:
+            valid = [e.value for e in EasingFunction]
+            return {
+                "success": False,
+                "error": f"Invalid easing '{easing}'. Valid: {valid}",
+            }
+        animation_manager.create(
+            name=name,
+            start_value=start_value,
+            end_value=end_value,
+            duration=duration,
+            easing=easing_fn,
+            loop=loop,
+        )
+        return {"success": True, "data": {"name": name}}
+    except Exception as e:
+        logger.error(f"Error creating animation '{name}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def start_animation(name: str) -> dict[str, Any]:
+    """Start a previously created animation.
+
+    Args:
+        name: Animation name
+
+    Returns:
+        Success status
+    """
+    try:
+        if not animation_manager.start(name):
+            return {"success": False, "error": f"Animation '{name}' not found"}
+        return {"success": True, "data": {"name": name}}
+    except Exception as e:
+        logger.error(f"Error starting animation '{name}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def stop_animation(name: str) -> dict[str, Any]:
+    """Stop a running animation, jumping it to its end value.
+
+    Args:
+        name: Animation name
+
+    Returns:
+        Success status
+    """
+    try:
+        if not animation_manager.stop(name):
+            return {"success": False, "error": f"Animation '{name}' not found"}
+        return {"success": True, "data": {"name": name}}
+    except Exception as e:
+        logger.error(f"Error stopping animation '{name}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def get_animation_value(name: str) -> dict[str, Any]:
+    """Get the current interpolated value of an animation.
+
+    Args:
+        name: Animation name
+
+    Returns:
+        Success status and current value
+    """
+    try:
+        value = animation_manager.get_value(name)
+        if value is None:
+            return {"success": False, "error": f"Animation '{name}' not found"}
+        return {"success": True, "data": {"name": name, "value": value}}
+    except Exception as e:
+        logger.error(f"Error getting animation value '{name}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ==============================================================================
+# Phase 3: Data binding tools
+# ==============================================================================
+
+
+@mcp.tool()
+def set_data(path: str, value: Any) -> dict[str, Any]:
+    """Set a value in the reactive data store.
+
+    Args:
+        path: Dot-notation path (e.g. "user.name", "settings.theme")
+        value: Value to store
+
+    Returns:
+        Success status
+    """
+    try:
+        data_store.set(path, value)
+        return {"success": True, "data": {"path": path, "value": value}}
+    except Exception as e:
+        logger.error(f"Error setting data '{path}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def get_data(path: str, default: Any = None) -> dict[str, Any]:
+    """Get a value from the reactive data store.
+
+    Args:
+        path: Dot-notation path (e.g. "user.name")
+        default: Value to return if path not found
+
+    Returns:
+        Success status and value
+    """
+    try:
+        value = data_store.get(path, default)
+        return {"success": True, "data": {"path": path, "value": value}}
+    except Exception as e:
+        logger.error(f"Error getting data '{path}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def bind_data(
+    source_path: str,
+    target_widget: str,
+    target_property: str,
+    bidirectional: bool = False,
+) -> dict[str, Any]:
+    """Bind a data store path to a widget property.
+
+    When the data at source_path changes, the widget property is updated
+    automatically.
+
+    Args:
+        source_path: Dot-notation data path (e.g. "user.name")
+        target_widget: Widget ID to bind to
+        target_property: Widget property name (e.g. "text", "value")
+        bidirectional: Enable two-way binding
+
+    Returns:
+        Success status
+    """
+    try:
+        binding_manager.bind(
+            source_path, target_widget, target_property, bidirectional=bidirectional
+        )
+        return {
+            "success": True,
+            "data": {
+                "source": source_path,
+                "target": f"{target_widget}.{target_property}",
+            },
+        }
+    except Exception as e:
+        logger.error(f"Error binding data '{source_path}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def unbind_data(source_path: str, target_widget: str | None = None) -> dict[str, Any]:
+    """Remove data bindings for a store path.
+
+    Args:
+        source_path: Data path to unbind
+        target_widget: If provided, removes only the binding for this widget;
+                       otherwise removes all bindings for the path
+
+    Returns:
+        Success status
+    """
+    try:
+        binding_manager.unbind(source_path, target_widget)
+        return {"success": True, "data": {"source": source_path}}
+    except Exception as e:
+        logger.error(f"Error unbinding data '{source_path}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ==============================================================================
+# Phase 3: File dialog tools
+# ==============================================================================
+
+
+@mcp.tool()
+def add_file_dialog(
+    canvas_id: str,
+    widget_id: str,
+    button_label: str = "Browse...",
+    mode: str = "open_file",
+    title: str = "Select File",
+    filters: list[str] | None = None,
+) -> dict[str, Any]:
+    """Add a file dialog widget to the canvas.
+
+    Args:
+        canvas_id: Target canvas identifier
+        widget_id: Unique identifier for the widget
+        button_label: Label shown on the browse button
+        mode: One of: open_file, open_folder, save_file
+        title: Dialog window title
+        filters: File type filters (e.g. ["*.py", "*.txt"])
+
+    Returns:
+        Success status and serialized widget data
+    """
+    try:
+        valid_modes = [
+            FileDialogMode.OPEN_FILE,
+            FileDialogMode.OPEN_FOLDER,
+            FileDialogMode.SAVE_FILE,
+        ]
+        if mode not in valid_modes:
+            return {
+                "success": False,
+                "error": f"Invalid mode '{mode}'. Valid: {valid_modes}",
+            }
+        widget = FileDialogWidget(
+            widget_id,
+            button_label=button_label,
+            mode=mode,
+            title=title,
+            filters=filters,
+        )
+        return _create_widget_in_canvas(canvas_id, widget)
+    except Exception as e:
+        logger.error(f"Error adding file dialog '{widget_id}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def show_message_dialog(
+    title: str,
+    message: str,
+    dialog_type: str = "info",
+) -> dict[str, Any]:
+    """Show a native OS message dialog.
+
+    Args:
+        title: Dialog title
+        message: Dialog message body
+        dialog_type: One of: info, warning, error
+
+    Returns:
+        Success status
+    """
+    try:
+        match dialog_type.lower():
+            case "info":
+                MessageDialog.info(title, message)
+            case "warning":
+                MessageDialog.warning(title, message)
+            case "error":
+                MessageDialog.error(title, message)
+            case _:
+                return {
+                    "success": False,
+                    "error": f"Invalid dialog_type '{dialog_type}'. Valid: info, warning, error",
+                }
+        return {"success": True, "data": {"title": title, "type": dialog_type}}
+    except Exception as e:
+        logger.error(f"Error showing message dialog: {e}")
         return {"success": False, "error": str(e)}
