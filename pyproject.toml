@@ -210,7 +210,7 @@ version_files = [
     "pyproject.toml:version",
     "src/champi_imgui/__init__.py:__version__"
 ]
-update_changelog_on_bump = true
+update_changelog_on_bump = false
 changelog_file = "CHANGELOG.md"
 changelog_incremental = true
 changelog_merge_prerelease = true
