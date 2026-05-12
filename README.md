@@ -31,38 +31,42 @@ An MCP (Model Context Protocol) server that enables Large Language Models to cre
 
 ## Quick Start
 
-### Installation
+### MCP Client Configuration (recommended)
 
-```bash
-pip install champi-imgui
-```
-
-Or with uv:
-
-```bash
-uv add champi-imgui
-```
-
-### Running the MCP Server
-
-```bash
-champi-imgui serve
-```
-
-### MCP Client Configuration
-
-Add to your MCP client configuration (e.g., `.mcp.json`):
+The easiest way to use champi-imgui is via the `.mcp.json` config — no installation required. Copy [`.mcp.json.example`](.mcp.json.example) to `.mcp.json` in your project root, or add this to your existing config:
 
 ```json
 {
   "mcpServers": {
     "champi-imgui": {
-      "command": "uv",
-      "args": ["run", "champi-imgui", "serve"],
-      "cwd": "/path/to/champi-imgui"
+      "command": "uvx",
+      "args": [
+        "--from",
+        "https://github.com/champi-ai/champi-imgui/releases/download/v1.2.0/champi_imgui-1.2.0-py3-none-any.whl",
+        "champi-imgui",
+        "serve"
+      ]
     }
   }
 }
+```
+
+`uvx` downloads and runs the wheel directly from the GitHub release — no PyPI, no manual install step.
+
+### Manual Installation
+
+Install from the GitHub release:
+
+```bash
+# Run without installing (ephemeral)
+uvx --from https://github.com/champi-ai/champi-imgui/releases/download/v1.2.0/champi_imgui-1.2.0-py3-none-any.whl champi-imgui serve
+
+# Install as a persistent tool
+uv tool install https://github.com/champi-ai/champi-imgui/releases/download/v1.2.0/champi_imgui-1.2.0-py3-none-any.whl
+champi-imgui serve
+
+# Add to a project
+uv add https://github.com/champi-ai/champi-imgui/releases/download/v1.2.0/champi_imgui-1.2.0-py3-none-any.whl
 ```
 
 ---
