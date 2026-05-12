@@ -1,4 +1,4 @@
-# Champi-ImGui 🎨
+# Champi-ImGui
 
 > **Generative UI for LLMs through ImGui and Python**
 
@@ -12,46 +12,35 @@ An MCP (Model Context Protocol) server that enables Large Language Models to cre
 
 ---
 
-## 🚧 Migration Status
+## Features
 
-**champi-imgui** is a clean migration from `champi-gen-ui` with the following improvements:
-- ✅ Clean git history with meaningful commits
-- ✅ Semantic versioning with conventional commits
-- ✅ Automated CI/CD and release workflows
-- ✅ Comprehensive pre-commit hooks and quality gates
-- 🚧 **Currently at v0.0.3** - Infrastructure setup complete, feature migration in progress
-
-See [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for the detailed 8-stage migration roadmap.
-
----
-
-## ✨ Planned Features
-
-Once migration is complete, champi-imgui will provide:
-
-- **200+ MCP Tools** for comprehensive UI creation
-- **150+ Widget Types** from ImGui core and extensions
-- **10+ Integrated Extensions** (plotting, node editing, file dialogs, etc.)
-- **5 Canvas Modes** (standard, docking, multi-viewport, fullscreen, overlay)
-- **Keyframe Animation System** with multiple easing functions
-- **Data Binding** for reactive UI updates
-- **JSON Serialization** for saving/loading UI definitions
-- **Code Generation** to export standalone Python scripts
-- **Template System** for reusable UI patterns
+- **200+ MCP tools** across 20 categories for comprehensive UI creation
+- **150+ widget types** — buttons, sliders, charts, menus, containers, color pickers, and more
+- **Plotting** via ImPlot: line charts, bar charts, scatter plots, pie charts, heatmaps, histograms
+- **Keyframe animation system** with easing functions
+- **Reactive data binding** (DataStore + BindingManager)
+- **9 built-in themes** — dark, light, cherry, nord, dracula, gruvbox, solarized_dark, monokai, material
+- **Layout manager** — horizontal, vertical, grid, stack, free modes
+- **Notifications** — toast overlays (info, success, warning, error)
+- **File dialogs** and message dialogs
+- **JSON serialization** — export and import full canvas state
+- **Python code generation** — export standalone scripts from any canvas
+- **Template system** — save, load, list, and delete reusable UI templates
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Installation
 
 ```bash
-uv pip install champi-imgui
+pip install champi-imgui
 ```
 
-Or with pip:
+Or with uv:
+
 ```bash
-pip install champi-imgui
+uv add champi-imgui
 ```
 
 ### Running the MCP Server
@@ -78,11 +67,12 @@ Add to your MCP client configuration (e.g., `.mcp.json`):
 
 ---
 
-## 💡 Usage Examples
+## Usage Examples
 
 ### Example 1: Simple Button
+
 ```
-LLM: "Create a button that says 'Click Me'"
+LLM: "Create a canvas with a button that says 'Click Me'"
 
 MCP executes:
 - create_canvas(canvas_id="main")
@@ -90,338 +80,188 @@ MCP executes:
 ```
 
 ### Example 2: Data Dashboard
+
 ```
-LLM: "Create a dashboard with a line chart showing sales data and a data table below"
+LLM: "Create a dashboard with a line chart showing sales data"
 
 MCP executes:
-- create_canvas(canvas_id="dashboard", mode="docking")
-- add_line_plot(canvas_id="dashboard", plot_id="sales_chart", ...)
-- create_table(canvas_id="dashboard", table_id="sales_table", ...)
-- set_layout_vertical(canvas_id="dashboard")
+- create_canvas(canvas_id="dashboard")
+- add_line_chart(canvas_id="dashboard", widget_id="sales_chart", ...)
+- set_layout_mode(mode="vertical")
 ```
 
-### Example 3: Node Editor
+### Example 3: Themed Form
+
 ```
-LLM: "Create a node graph editor for a processing pipeline"
+LLM: "Create a dark-themed form with name and email inputs"
 
 MCP executes:
-- create_canvas(canvas_id="pipeline")
-- create_node_editor(canvas_id="pipeline", editor_id="graph")
-- add_node(editor_id="graph", node_id="input", title="Input")
-- add_node(editor_id="graph", node_id="process", title="Process")
-- add_link(editor_id="graph", from_pin="input.out", to_pin="process.in")
+- create_canvas(canvas_id="form")
+- apply_theme(theme_name="dark")
+- add_input_text(canvas_id="form", widget_id="name", label="Name")
+- add_input_text(canvas_id="form", widget_id="email", label="Email")
+```
+
+### Example 4: Export to JSON
+
+```
+LLM: "Save this UI to a file"
+
+MCP executes:
+- export_canvas_json(canvas_id="form", filepath="my_form.json")
+
+# Later, restore it:
+- import_canvas_json(filepath="my_form.json")
+```
+
+### Example 5: Generate Python Code
+
+```
+LLM: "Generate a Python script for this canvas"
+
+MCP executes:
+- export_canvas_python(canvas_id="form", filepath="my_form.py")
+# or, return as string:
+- generate_canvas_code(canvas_id="form")
 ```
 
 ---
 
-## 📚 Documentation
+## MCP Tool Categories
 
-Comprehensive documentation is available:
-
-### Migration Documentation
-- **[MIGRATION_PLAN.md](MIGRATION_PLAN.md)** - Complete 8-stage implementation roadmap
-- **[MIGRATION_SYSTEM_PROMPT.md](MIGRATION_SYSTEM_PROMPT.md)** - Execution methodology for LLM assistants
-- **[CLAUDE.md](CLAUDE.md)** - Development guide and project overview
-
-### Reference Guides (Coming in future stages)
-- **WIDGET_CATALOG.md** - All 150+ widgets documented
-- **MCP_TOOLS_API.md** - Complete API for 200+ MCP tools
-- **EXTENSIONS_GUIDE.md** - Third-party extension integration
-- **ARCHITECTURE.md** - System architecture
+| # | Category | Tools |
+|---|---|---|
+| 1 | Canvas Management | `create_canvas`, `get_canvas_state`, `clear_canvas`, `list_canvases`, `update_canvas_state`, `shutdown_canvas` |
+| 2 | Basic Widgets | `add_button`, `add_small_button`, `add_arrow_button`, `add_invisible_button`, `add_text`, `add_colored_text`, `add_wrapped_text`, `add_bullet_text`, `add_label_text`, `add_input_text`, `add_checkbox`, `add_radio_button`, `add_combo`, `add_list_box`, `add_selectable` |
+| 3 | Input Widgets | `add_input_int`, `add_input_float`, `add_input_double`, `add_input_scalar`, `add_checkbox_flags` |
+| 4 | Color Widgets | `add_color_picker`, `add_color_picker3`, `add_color_edit3`, `add_color_edit4`, `add_color_button` |
+| 5 | Sliders & Drag | `add_slider_int`, `add_slider_float`, `add_drag_int`, `add_drag_float` |
+| 6 | Progress & Status | `add_progress_bar`, `add_loading_indicator`, `add_status_bar` |
+| 7 | Container Widgets | `add_window`, `add_child_window`, `add_group`, `add_collapsing_header`, `add_tab_bar`, `add_tab_item`, `add_separator`, `add_spacing`, `add_dummy` |
+| 8 | Menu Widgets | `add_menu_bar`, `add_menu`, `add_menu_item`, `add_tree_node`, `add_tooltip`, `add_popup`, `add_context_menu` |
+| 9 | Display Widgets | `add_plot_lines`, `add_help_marker`, `add_bullet` |
+| 10 | Plotting (ImPlot) | `add_line_chart`, `add_bar_chart`, `add_scatter_plot`, `add_pie_chart`, `add_heatmap`, `add_histogram`, `add_realtime_plot`, `add_error_bars` |
+| 11 | Themes | `apply_theme`, `list_themes` |
+| 12 | Layout | `set_layout_mode`, `set_layout_spacing` |
+| 13 | Notifications | `show_notification`, `clear_notifications` |
+| 14 | Animation | `create_animation`, `start_animation`, `stop_animation`, `get_animation_value` |
+| 15 | Data Binding | `set_data`, `get_data`, `bind_data`, `unbind_data` |
+| 16 | File & Message Dialogs | `add_file_dialog`, `show_message_dialog` |
+| 17 | Export / Import | `export_canvas_json`, `export_canvas_python`, `import_canvas_json`, `get_canvas_json` |
+| 18 | Code Generation | `generate_canvas_code`, `generate_widget_snippet`, `generate_component_template` |
+| 19 | Templates | `save_template`, `load_template`, `list_templates`, `delete_template` |
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
-┌─────────────────────────────────────┐
-│             LLM                     │
-└──────────────┬──────────────────────┘
-               │
-               ▼
-┌─────────────────────────────────────┐
-│        MCP Client                   │
-└──────────────┬──────────────────────┘
-               │
-               ▼
-┌─────────────────────────────────────┐
-│     FastMCP Server (200+ tools)     │
-└──────────────┬──────────────────────┘
-               │
-    ┌──────────┴──────────┐
-    │   Canvas Manager    │
-    └──────────┬──────────┘
-               │
-               ▼
-┌─────────────────────────────────────┐
-│      Widget System                  │
-├─────────────────────────────────────┤
-│    Widget Registry (150+)           │
-│    Animation Engine                 │
-│    Layout Manager                   │
-└──────────────┬──────────────────────┘
-               │
-               ▼
-┌─────────────────────────────────────┐
-│      ImGui Bundle                   │
-│  - ImGui Core                       │
-│  - ImPlot (plotting)                │
-│  - Extensions (node editor, etc.)   │
-└─────────────────────────────────────┘
+LLM ──► MCP Client ──► FastMCP Server (200+ tools)
+                              │
+                       CanvasManager
+                              │
+              ┌───────────────┼───────────────┐
+              │               │               │
+        WidgetSystem    ExtensionLayer    Serialization
+        ├── Factory      ├── Themes        ├── UIExporter
+        ├── Registry     ├── Layouts       ├── UIImporter
+        └── 150+ types   ├── Animation     ├── CodeGenerator
+                         ├── Binding       └── TemplateManager
+                         ├── Notifications
+                         └── FileDialogs
+                              │
+                        ImGui Bundle
+                        ├── ImGui Core
+                        └── ImPlot
 ```
 
----
+### Threading Model
 
-## 🛠️ MCP Tool Categories
-
-The server will provide 200+ tools organized into 20 categories:
-
-1. **Canvas Management** (7 tools)
-2. **Basic Widgets** (25 tools)
-3. **Container Widgets** (5 tools)
-4. **Layout Tools** (10 tools)
-5. **Styling & Theming** (12 tools)
-6. **Animation Tools** (10 tools)
-7. **File Dialog Tools** (5 tools)
-8. **Notification Tools** (7 tools)
-9. **Table Tools** (10 tools)
-10. **Plotting Tools** (15 tools)
-11. **Node Editor Tools** (10 tools)
-12. **Text Editor Tools** (8 tools)
-13. **Memory Editor Tools** (5 tools)
-14. **Input Handling Tools** (10 tools)
-15. **Drawing Tools** (15 tools)
-16. **Data Binding Tools** (8 tools)
-17. **Export/Import Tools** (8 tools)
-18. **Custom Widgets** (10 tools)
-19. **Advanced Features** (8 tools)
-20. **Utility Tools** (7 tools)
+- Each canvas runs its render loop on a **background daemon thread**
+- MCP tools communicate with the render thread via a **command queue**
+- All ImGui API calls are made on the render thread; MCP tools enqueue lambdas
 
 ---
 
-## 🧩 Widget Categories
+## Development
 
-### Basic Widgets (25+)
-Buttons, text labels, input fields, checkboxes, radio buttons, sliders, drag controls, combo boxes, list boxes, color pickers, and more.
+### Setup
 
-### Data Visualization (15+)
-Line charts, scatter plots, bar charts, histograms, heatmaps, pie charts, candlestick charts, and more (via ImPlot).
-
-### Advanced Widgets (30+)
-Tables, tree views, node graphs, syntax-highlighted text editors, file dialogs, notifications, memory editors, and more.
-
-### Custom Widgets (10+)
-Knobs, toggles, spinners, date pickers, time pickers, gradient editors, and community-contributed widgets.
-
----
-
-## 🔌 Extensions
-
-Champi-ImGui integrates 10+ powerful extensions:
-
-- **imgui_club** - Memory editor, multi-context compositor
-- **HImGuiAnimation** - Keyframe animation system
-- **ImGuiFD** - Lightweight file dialogs
-- **imgui-notify** - Toast notification system
-- **ImPlot** - Advanced plotting library
-- **ImNodes** - Node graph editing
-- **ImGuiColorTextEdit** - Syntax-highlighted editor
-- **imgui-markdown** - Markdown rendering
-- And more!
-
----
-
-## 🖼️ Canvas Modes
-
-1. **Standard** - Traditional window-based UI
-2. **Docking** - Dockable window layout
-3. **Multi-Viewport** - Multiple windows support
-4. **Fullscreen** - Immersive full-screen mode
-5. **Overlay** - Transparent overlay mode
-
----
-
-## 💾 Data Persistence
-
-### Export UI Definition
-```python
-export_ui_json(canvas_id="dashboard", file_path="dashboard.json")
-```
-
-### Import UI Definition
-```python
-import_ui_json(file_path="dashboard.json")
-```
-
-### Generate Python Code
-```python
-generate_code(canvas_id="dashboard", output_path="dashboard.py")
-```
-
----
-
-## ⚙️ Development
-
-### Project Structure
-```
-champi-imgui/
-├── src/champi_imgui/
-│   ├── server/          # FastMCP server
-│   ├── core/            # Core UI management
-│   ├── widgets/         # Widget library
-│   ├── extensions/      # Third-party integrations
-│   ├── themes/          # Theming & styling
-│   └── layout/          # Layout managers
-├── docs/                # Documentation
-├── tests/               # Test suite
-├── .github/workflows/   # CI/CD pipelines
-└── MIGRATION_PLAN.md    # Implementation roadmap
+```bash
+git clone https://github.com/champi-ai/champi-imgui.git
+cd champi-imgui
+uv sync --all-extras --dev
+pre-commit install
+pre-commit install --hook-type commit-msg
 ```
 
 ### Running Tests
+
 ```bash
-# Install dev dependencies
-uv sync --all-extras --dev
-
-# Run tests
-uv run pytest
-
-# Run with coverage
-uv run pytest --cov=champi_imgui
+uv run python -m pytest
+uv run python -m pytest --cov=champi_imgui
 ```
 
 ### Code Quality
+
 ```bash
-# Format code
 uv run ruff format .
-
-# Lint code
 uv run ruff check .
-
-# Type checking
-uv run mypy src
-
-# Security scanning
+uv run python -m mypy src
 uv run bandit -r src
 ```
 
----
+### Project Structure
 
-## 🤝 Contributing
-
-Contributions are welcome! The project uses:
-- **Conventional Commits** for commit messages
-- **Semantic Versioning** for releases
-- **Pre-commit hooks** for code quality
-- **GitHub Actions** for CI/CD
-
-### Development Setup
-```bash
-# Clone repository
-git clone https://github.com/champi-ai/champi-imgui.git
-cd champi-imgui
-
-# Install with UV
-uv sync --all-extras --dev
-
-# Install pre-commit hooks
-pre-commit install
-pre-commit install --hook-type commit-msg
-
-# Run in development mode (when implemented)
-uv run champi-imgui serve
+```
+champi-imgui/
+├── src/champi_imgui/
+│   ├── server/        # FastMCP server — all MCP tool definitions
+│   ├── core/          # Canvas, state, widget ABC, data binding, serialization, codegen
+│   ├── widgets/       # Widget implementations (basic, slider, menu, display, container, plotting)
+│   ├── extensions/    # Animation, notifications, file dialogs
+│   ├── themes/        # ThemeManager + 9 preset themes
+│   ├── layout/        # LayoutManager
+│   ├── ipc/           # Shared memory IPC bridge
+│   └── cli.py         # Entry point: champi-imgui serve
+├── tests/             # pytest test suite (641 tests, 66%+ coverage)
+├── docs/              # Architecture, widget catalog, MCP API reference
+├── .github/workflows/ # CI, release, pre-commit
+└── pyproject.toml
 ```
 
 ---
 
-## 📋 Requirements
+## Contributing
 
-- Python 3.12+ (also supports Python 3.13)
-- imgui-bundle
-- pyglm
-- fastmcp
-- blinker
-- loguru
-
-See [pyproject.toml](pyproject.toml) for complete dependencies.
+The project uses:
+- **Conventional Commits** — `feat:`, `fix:`, `chore:` (triggers semantic versioning)
+- **Semantic Versioning** — automated via commitizen
+- **Pre-commit hooks** — ruff, mypy, bandit, detect-secrets
+- **GitHub Actions** — CI on every PR, PyPI release on tag
 
 ---
 
-## 📄 License
+## Requirements
 
-MIT License - See [LICENSE](LICENSE) for details.
+- Python 3.12+
+- imgui-bundle >= 1.5.0
+- fastmcp >= 2.12.0
+- pyglm, blinker, loguru, pydantic
 
----
-
-## 🙏 Acknowledgments
-
-- **Dear ImGui** - Amazing immediate mode GUI library
-- **imgui-bundle** - Comprehensive Python bindings
-- **FastMCP** - Excellent MCP server framework
-- **ImPlot** - Powerful plotting library
-- **champi-gen-ui** - Original implementation that inspired this clean migration
+See [pyproject.toml](pyproject.toml) for the complete dependency list.
 
 ---
 
-## 🔗 Related Projects
+## License
 
-Part of the Champi project family:
-- **champi-signals** - Signal management and event processing
-- **champi-stt** - Multi-provider speech-to-text
-- **champi-tts** - Multi-provider text-to-speech
-- **champi-imgui** - Generative UI (this project)
+MIT — see [LICENSE](LICENSE) for details.
 
 ---
 
-## 💬 Support
+## Related Projects
 
-- 📚 [Documentation](MIGRATION_PLAN.md)
-- 🐛 [Issue Tracker](https://github.com/champi-ai/champi-imgui/issues)
-- 💭 [Discussions](https://github.com/champi-ai/champi-imgui/discussions)
-
----
-
-## 🗺️ Migration Roadmap
-
-### Stage 1-3: Infrastructure ✅ (v0.0.3)
-- Repository setup with clean git history
-- Semantic versioning with commitizen
-- CI/CD pipelines with GitHub Actions
-- Pre-commit hooks for code quality
-
-### Stage 4: Documentation 🚧 (stays v0.0.3)
-- README.md and project documentation
-- API reference structure
-
-### Stage 5: Core System 📋 (v0.0.3 → v0.1.0)
-- MCP server foundation
-- Canvas system with IPC
-- Basic widget infrastructure
-
-### Stage 6: Widget Library 📋 (v0.1.0 → v0.2.0)
-- Complete widget set (150+)
-- Widget factory and registry
-- MCP tool bindings
-
-### Stage 7: Advanced Features 📋 (v0.2.0 → v0.3.0)
-- Animation system
-- Data binding
-- Themes and layouts
-- Template system
-
-### Stage 8: Polish & Export 📋 (v0.3.0 → v0.4.0)
-- JSON serialization
-- Code generation
-- Complete testing
-
-See [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for detailed implementation steps.
-
----
-
-## ⭐ Star History
-
-If you find this project useful, please consider giving it a star!
-
----
-
-**Built with ❤️ using ImGui, Python, and FastMCP**
+Part of the Champi ecosystem:
+- **champi-signals** — Signal management and event processing
+- **champi-stt** — Multi-provider speech-to-text
+- **champi-tts** — Multi-provider text-to-speech
