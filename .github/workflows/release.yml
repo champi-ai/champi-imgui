@@ -45,7 +45,7 @@ jobs:
         git fetch --unshallow --tags
 
     - name: Install uv for commitizen
-      uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
+      run: curl -LsSf https://astral.sh/uv/install.sh | sh && echo "$HOME/.local/bin" >> $GITHUB_PATH
 
     - name: Install commitizen
       run: uv tool install commitizen
@@ -149,15 +149,10 @@ jobs:
 
     - name: Create GitHub Release
       if: steps.cz.outputs.version_changed == 'true' && github.event.inputs.dry_run != 'true'
-      env:
-        GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-      run: |
-        TAG="v${{ steps.cz.outputs.version }}"
-        if gh release view "$TAG" &>/dev/null; then
-          echo "Release $TAG already exists, skipping"
-        else
-          gh release create "$TAG" \
-            --title "$TAG" \
-            --notes-file body.md \
-            dist/*
-        fi
+      uses: softprops/action-gh-release@6da8fa9354ddfdc4aeace5fc48d7f679b5214090
+      with:
+        tag_name: v${{ steps.cz.outputs.version }}
+        name: v${{ steps.cz.outputs.version }}
+        body_path: body.md
+        files: dist/*
+        token: ${{ secrets.RELEASE_TOKEN }}
