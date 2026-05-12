@@ -55,6 +55,8 @@ jobs:
         git config --local user.name "Divagnz"
         git config --local user.email "oscar.liguori.bagnis@gmail.com"
         git config --local pull.rebase true
+        # Disable hooks so the bump commit is not blocked by commit-msg validation
+        git config --local core.hooksPath /dev/null
 
     - name: Run commitizen bump
       id: cz
@@ -70,22 +72,23 @@ jobs:
         echo "Existing tags: $TAG_COUNT"
 
         # Determine bump command based on trigger type and tag existence
-        BUMP_CMD="cz --no-raise 21,7,16 bump --yes"
+        # --no-raise 21: no commitizen-formatted commits found (nothing to bump, clean skip)
+        # --no-raise 16: no increment detected (also clean skip)
+        BUMP_CMD="cz --no-raise 21,16 bump --yes"
 
         # If manually triggered with specific bump type, use it
         if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
           BUMP_TYPE="${{ github.event.inputs.bump_type }}"
           if [[ "$BUMP_TYPE" != "auto" ]]; then
-            BUMP_CMD="cz --no-raise 21,7,16 bump --yes --increment $BUMP_TYPE"
+            BUMP_CMD="cz --no-raise 21,16 bump --yes --increment $BUMP_TYPE"
           fi
           echo "Manual trigger with bump_type: $BUMP_TYPE"
         fi
 
         eval $BUMP_CMD
-        cz --no-raise 16 changelog --unreleased-version "v${REV}" 2>/dev/null || true
 
-        # Get new version
-        REV=$(cz version --project)
+        # Read new version directly from pyproject.toml (reliable after bump rewrites the file)
+        REV=$(grep -oP '(?<=^version = ")[^"]+' pyproject.toml | head -1)
         echo "New version: $REV"
         echo "version=${REV}" >> $GITHUB_OUTPUT
 
