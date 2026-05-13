@@ -2,8 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from champi_imgui.widgets.display import ImageWidget
 
 
@@ -95,9 +93,11 @@ class TestImageWidgetRender:
         w._loaded_path = "/a.png"
         w.state.properties["file_path"] = "/b.png"
 
-        with patch.object(w, "_load_texture", return_value=None) as mock_load:
-            with patch("champi_imgui.widgets.display.imgui"):
-                w.render()
+        with (
+            patch.object(w, "_load_texture", return_value=None) as mock_load,
+            patch("champi_imgui.widgets.display.imgui"),
+        ):
+            w.render()
         mock_load.assert_called_once_with("/b.png")
 
     def test_render_calls_imgui_image_with_texture(self):
