@@ -2,5 +2,8 @@
   "Phase 1: Merge Core Widget System": "phase:1",
   "Phase 2: Complete Widget System": "phase:2",
   "Phase 3: Advanced Features": "phase:3",
-  "Phase 4: Serialization and Code Generation": "phase:4"
+  "Phase 4: Serialization and Code Generation": "phase:4",
+  "Phase 0: Image Widget": "phase:0",
+  "Phase 1: MCP Event Queue": "phase:mcp-events",
+  "Phase 2: Integration and Polish": "phase:integration"
 }
