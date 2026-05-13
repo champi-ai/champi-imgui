@@ -1581,6 +1581,7 @@ def add_tab_bar(
 def add_tab_item(
     canvas_id: str,
     widget_id: str,
+    tab_bar_id: str,
     label: str = "Tab",
     closable: bool = False,
 ) -> dict[str, Any]:
@@ -1589,6 +1590,7 @@ def add_tab_item(
     Args:
         canvas_id: Target canvas identifier
         widget_id: Unique identifier for the widget
+        tab_bar_id: Widget ID of the parent TabBarWidget
         label: Tab label text
         closable: Whether the tab shows a close button
 
@@ -1596,8 +1598,27 @@ def add_tab_item(
         Success status and serialized widget data
     """
     try:
-        widget = TabItemWidget(widget_id, label=label, closable=closable)
-        return _create_widget_in_canvas(canvas_id, widget)
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if not canvas:
+            return {"success": False, "error": f"Canvas '{canvas_id}' not found"}
+        tab_bar = canvas.widget_registry.get(tab_bar_id)
+        if tab_bar is None:
+            return {"success": False, "error": f"TabBarWidget '{tab_bar_id}' not found"}
+        if not isinstance(tab_bar, TabBarWidget):
+            return {
+                "success": False,
+                "error": f"Widget '{tab_bar_id}' is not a TabBarWidget",
+            }
+
+        tab_item = TabItemWidget(widget_id, label=label, closable=closable)
+
+        def _wire() -> None:
+            tab_bar.add_tab_item(tab_item)
+            canvas.widget_registry.add(tab_item)
+
+        canvas_manager.ensure_canvas_running(canvas_id)
+        canvas.queue_command(_wire)
+        return {"success": True, "data": tab_item.serialize()}
     except Exception as e:
         logger.error(f"Error adding tab item '{widget_id}': {e}")
         return {"success": False, "error": str(e)}
