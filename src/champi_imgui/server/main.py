@@ -12,7 +12,9 @@ from loguru import logger
 from champi_imgui.core.binding import BindingManager, DataStore
 from champi_imgui.core.canvas import CanvasManager
 from champi_imgui.core.codegen import CodeGenerator, TemplateCodeGenerator
+from champi_imgui.core.events import EventQueue
 from champi_imgui.core.serialization import TemplateManager, UIExporter, UIImporter
+from champi_imgui.core.widget import set_event_queue
 from champi_imgui.extensions.animation import AnimationManager, EasingFunction
 from champi_imgui.extensions.file_dialog import (
     FileDialogMode,
@@ -107,6 +109,10 @@ from champi_imgui.widgets.slider import (
 
 # Global canvas manager (single instance for all MCP tool calls)
 canvas_manager = CanvasManager()
+
+# Event queue wired into the widget callback system
+event_queue = EventQueue()
+set_event_queue(event_queue)
 
 # Phase 3: Advanced feature managers
 theme_manager = ThemeManager()
@@ -3007,4 +3013,116 @@ def update_image(
         return {"success": True, "data": widget.serialize()}
     except Exception as e:
         logger.error(f"Error updating image widget '{widget_id}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ==============================================================================
+# Event subscription tools
+# ==============================================================================
+
+
+@mcp.tool()
+def subscribe_events(
+    canvas_id: str, widget_id: str, events: list[str]
+) -> dict[str, Any]:
+    """Subscribe to widget events. After subscribing, use poll_events to retrieve fired events.
+
+    Supported event types depend on the widget: 'click' for buttons,
+    'change' for inputs/checkboxes, etc.
+
+    Args:
+        canvas_id: Canvas containing the widget (used for validation)
+        widget_id: Widget identifier to subscribe to
+        events: List of event type names to subscribe to
+
+    Returns:
+        Success status and active subscriptions for the widget
+    """
+    try:
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if canvas is None:
+            return {"success": False, "error": f"Canvas '{canvas_id}' not found"}
+        event_queue.subscribe(widget_id, events)
+        return {
+            "success": True,
+            "data": {
+                "widget_id": widget_id,
+                "subscribed_events": events,
+            },
+        }
+    except Exception as e:
+        logger.error(f"Error subscribing to events for '{widget_id}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def unsubscribe_events(
+    widget_id: str, events: list[str] | None = None
+) -> dict[str, Any]:
+    """Unsubscribe from widget events.
+
+    Pass events=None to remove all subscriptions for the widget.
+
+    Args:
+        widget_id: Widget identifier to unsubscribe from
+        events: Specific event types to remove, or None to remove all
+
+    Returns:
+        Success status and remaining subscriptions
+    """
+    try:
+        event_queue.unsubscribe(widget_id, events)
+        remaining = event_queue.get_subscriptions().get(widget_id, [])
+        return {
+            "success": True,
+            "data": {
+                "widget_id": widget_id,
+                "remaining_events": remaining,
+            },
+        }
+    except Exception as e:
+        logger.error(f"Error unsubscribing events for '{widget_id}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def poll_events(widget_id: str | None = None, drain: bool = True) -> dict[str, Any]:
+    """Poll for queued widget events.
+
+    Returns all events, optionally filtered by widget_id.
+    If drain=True (default), clears returned events from the queue.
+
+    Args:
+        widget_id: Filter results to a specific widget, or None for all
+        drain: Whether to remove returned events from the queue
+
+    Returns:
+        Success status and list of serialized events
+    """
+    try:
+        events = event_queue.poll(widget_id=widget_id, drain=drain)
+        return {
+            "success": True,
+            "data": {
+                "events": [e.to_dict() for e in events],
+                "count": len(events),
+            },
+        }
+    except Exception as e:
+        logger.error(f"Error polling events: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def get_event_subscriptions() -> dict[str, Any]:
+    """List all active event subscriptions.
+
+    Returns:
+        Success status and mapping of widget_id to subscribed event types
+    """
+    try:
+        subscriptions = event_queue.get_subscriptions()
+        return {"success": True, "data": {"subscriptions": subscriptions}}
+    except Exception as e:
+        logger.error(f"Error retrieving event subscriptions: {e}")
         return {"success": False, "error": str(e)}
