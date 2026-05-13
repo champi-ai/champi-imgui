@@ -149,6 +149,7 @@ module = [
     "champi_gen_ui.*",
     "pytest",
     "_pytest.*",
+    "OpenGL.*",
 ]
 ignore_missing_imports = true
 
