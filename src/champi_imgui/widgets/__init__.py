@@ -47,6 +47,7 @@ from champi_imgui.widgets.container import (
 )
 from champi_imgui.widgets.display import (
     HelpMarkerWidget,
+    ImageWidget,
     PlotLinesWidget,
 )
 from champi_imgui.widgets.input import (
@@ -116,6 +117,7 @@ __all__ = [
     "HeatmapWidget",
     "HelpMarkerWidget",
     "HistogramWidget",
+    "ImageWidget",
     "InputDoubleWidget",
     "InputFloatWidget",
     "InputIntWidget",
