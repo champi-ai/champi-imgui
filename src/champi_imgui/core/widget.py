@@ -44,6 +44,7 @@ class Widget(ABC):
             widget_id=widget_id, widget_type=self.__class__.__name__, properties=props
         )
         self._callbacks: dict[str, Callable] = {}
+        self._parent_id: str | None = None
 
     @abstractmethod
     def render(self) -> Any:

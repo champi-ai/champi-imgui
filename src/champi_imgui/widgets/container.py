@@ -12,6 +12,8 @@ This module contains layout and container widgets:
 - DummyWidget: Blank space placeholder
 """
 
+import contextlib
+
 from imgui_bundle import imgui
 
 from champi_imgui.core.widget import Widget
@@ -166,36 +168,12 @@ class CollapsingHeaderWidget(Widget):
         return is_open
 
 
-class TabBarWidget(Widget):
-    """Tab bar container widget."""
-
-    def __init__(self, widget_id: str, **props):
-        """Initialize tab bar.
-
-        Args:
-            widget_id: Unique widget identifier
-            **props: Additional properties (flags, etc.)
-        """
-        props["active_tab"] = None
-        super().__init__(widget_id, **props)
-
-    def render(self) -> str | None:
-        """Render the tab bar.
-
-        Returns:
-            The currently active tab id, or None
-        """
-        flags = self.state.properties.get("flags", 0)
-
-        if imgui.begin_tab_bar(self.widget_id, flags):
-            active_tab = self.state.properties.get("active_tab")
-            imgui.end_tab_bar()
-            return active_tab
-        return None
-
-
 class TabItemWidget(Widget):
-    """Individual tab item widget."""
+    """Individual tab item widget.
+
+    Must be added to a TabBarWidget via TabBarWidget.add_tab_item().
+    Child widgets added via add_child() are rendered when the tab is active.
+    """
 
     def __init__(
         self,
@@ -204,25 +182,18 @@ class TabItemWidget(Widget):
         closable: bool = False,
         **props,
     ):
-        """Initialize tab item.
-
-        Args:
-            widget_id: Unique widget identifier
-            label: Tab label text
-            closable: Whether the tab has a close button
-            **props: Additional properties (flags, etc.)
-        """
         props["label"] = label
         props["closable"] = closable
         props["is_open"] = True
         super().__init__(widget_id, **props)
+        self._children: list[Widget] = []
+
+    def add_child(self, widget: "Widget") -> None:
+        widget._parent_id = self.widget_id
+        self._children.append(widget)
 
     def render(self) -> bool:
-        """Render the tab item.
-
-        Returns:
-            True if the tab is selected
-        """
+        """Render the tab item and its children. Must be called inside begin_tab_bar."""
         label = self.state.properties.get("label", "Tab")
         closable = self.state.properties.get("closable", False)
         is_open = self.state.properties.get("is_open", True)
@@ -238,10 +209,49 @@ class TabItemWidget(Widget):
             selected, _ = imgui.begin_tab_item(label, None, flags)
 
         if selected:
+            for child in self._children:
+                with contextlib.suppress(Exception):
+                    child.render()
             imgui.end_tab_item()
             self.trigger_callback("on_select")
 
-        return selected
+        return bool(selected)
+
+
+class TabBarWidget(Widget):
+    """Tab bar container widget.
+
+    Add tab items via add_tab_item(). Each TabItemWidget can hold child
+    widgets added via TabItemWidget.add_child().
+    """
+
+    def __init__(self, widget_id: str, **props):
+        props["active_tab"] = None
+        super().__init__(widget_id, **props)
+        self._tab_items: list[TabItemWidget] = []
+
+    def add_tab_item(self, tab_item: TabItemWidget) -> None:
+        tab_item._parent_id = self.widget_id
+        self._tab_items.append(tab_item)
+
+    def render(self) -> str | None:
+        """Render the tab bar and all owned tab items.
+
+        Returns:
+            The currently active tab id, or None
+        """
+        flags = self.state.properties.get("flags", 0)
+
+        if imgui.begin_tab_bar(self.widget_id, flags):
+            active_tab = None
+            for tab_item in self._tab_items:
+                with contextlib.suppress(Exception):
+                    if tab_item.render():
+                        active_tab = tab_item.widget_id
+            self.state.properties["active_tab"] = active_tab
+            imgui.end_tab_bar()
+            return active_tab
+        return None
 
 
 class SeparatorWidget(Widget):
