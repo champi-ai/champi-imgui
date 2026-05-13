@@ -1,6 +1,7 @@
 """Display and visualization widgets.
 
 This module contains widgets for displaying data and formatted text:
+- ImageWidget: Display a PNG/JPG image loaded from a file path
 - PlotLinesWidget: Line plot from a list of float values
 - TextColoredWidget: Text rendered in a custom RGBA color
 - BulletTextWidget: Bullet-prefixed text line
@@ -10,6 +11,99 @@ This module contains widgets for displaying data and formatted text:
 from imgui_bundle import imgui
 
 from champi_imgui.core.widget import Widget
+
+
+class ImageWidget(Widget):
+    """Image display widget.
+
+    Loads a PNG or JPG image from a file path and renders it using imgui.image().
+    Texture loading is deferred to the first render call so it always happens
+    on the OpenGL render thread.
+    """
+
+    def __init__(
+        self,
+        widget_id: str,
+        file_path: str = "",
+        width: float = 200.0,
+        height: float = 200.0,
+        **props,
+    ):
+        """Initialize image widget.
+
+        Args:
+            widget_id: Unique widget identifier
+            file_path: Absolute or relative path to a PNG or JPG image
+            width: Display width in pixels
+            height: Display height in pixels
+            **props: Additional properties
+        """
+        props["file_path"] = file_path
+        props["width"] = width
+        props["height"] = height
+        super().__init__(widget_id, **props)
+        self._texture_id: int | None = None
+        self._loaded_path: str = ""
+
+    def _load_texture(self, file_path: str) -> int | None:
+        """Load an image file into an OpenGL texture and return the texture ID.
+
+        Must be called from the render thread while the OpenGL context is active.
+
+        Args:
+            file_path: Path to PNG or JPG image
+
+        Returns:
+            OpenGL texture ID, or None on failure
+        """
+        try:
+            import numpy as np
+            from OpenGL import GL
+            from PIL import Image as PILImage
+
+            img = PILImage.open(file_path).convert("RGBA")
+            img_data = np.array(img, dtype=np.uint8)
+
+            tex_id = GL.glGenTextures(1)
+            GL.glBindTexture(GL.GL_TEXTURE_2D, tex_id)
+            GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR)
+            GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
+            GL.glTexImage2D(
+                GL.GL_TEXTURE_2D,
+                0,
+                GL.GL_RGBA,
+                img.width,
+                img.height,
+                0,
+                GL.GL_RGBA,
+                GL.GL_UNSIGNED_BYTE,
+                img_data,
+            )
+            GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
+            return int(tex_id)
+        except Exception:
+            return None
+
+    def render(self) -> None:
+        """Render the image. Loads the texture on first render or when file_path changes."""
+        if not self.state.visible:
+            return
+
+        file_path = self.state.properties.get("file_path", "")
+        width = self.state.properties.get("width", 200.0)
+        height = self.state.properties.get("height", 200.0)
+
+        if file_path != self._loaded_path:
+            self._texture_id = self._load_texture(file_path) if file_path else None
+            self._loaded_path = file_path
+
+        if self._texture_id is None:
+            imgui.text_disabled(f"[Image: {file_path or 'no file'}]")
+            return
+
+        imgui.image(imgui.ImTextureRef(self._texture_id), imgui.ImVec2(width, height))
+        if imgui.is_item_clicked():
+            self.trigger_callback("click")
 
 
 class PlotLinesWidget(Widget):

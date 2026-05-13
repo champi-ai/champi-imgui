@@ -62,6 +62,7 @@ from champi_imgui.widgets.container import (
 )
 from champi_imgui.widgets.display import (
     HelpMarkerWidget,
+    ImageWidget,
     PlotLinesWidget,
 )
 from champi_imgui.widgets.input import (
@@ -2930,6 +2931,88 @@ def delete_template(name: str) -> dict[str, Any]:
         return {"success": ok, "data": {"name": name}}
     except Exception as e:
         logger.error(f"Error deleting template '{name}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ==============================================================================
+# Image widget tools
+# ==============================================================================
+
+
+@mcp.tool()
+def add_image(
+    canvas_id: str,
+    widget_id: str,
+    file_path: str,
+    width: float = 200.0,
+    height: float = 200.0,
+) -> dict[str, Any]:
+    """Add an image widget to the canvas. Displays a PNG or JPG image from a file path.
+
+    The image is loaded lazily on the first render frame. If the file is not found
+    or cannot be decoded, a placeholder text is shown instead of crashing.
+
+    Args:
+        canvas_id: Target canvas identifier
+        widget_id: Unique identifier for the widget
+        file_path: Absolute or relative path to a PNG or JPG image file
+        width: Display width in pixels (default 200)
+        height: Display height in pixels (default 200)
+
+    Returns:
+        Success status and serialized widget data
+    """
+    try:
+        widget = ImageWidget(widget_id, file_path=file_path, width=width, height=height)
+        return _create_widget_in_canvas(canvas_id, widget)
+    except Exception as e:
+        logger.error(f"Error adding image widget '{widget_id}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def update_image(
+    canvas_id: str,
+    widget_id: str,
+    file_path: str | None = None,
+    width: float | None = None,
+    height: float | None = None,
+) -> dict[str, Any]:
+    """Update the file path or display dimensions of an existing image widget.
+
+    Only the provided parameters are updated; omitted parameters are left unchanged.
+
+    Args:
+        canvas_id: Canvas containing the widget
+        widget_id: Widget identifier to update
+        file_path: New image file path, or None to keep current
+        width: New display width in pixels, or None to keep current
+        height: New display height in pixels, or None to keep current
+
+    Returns:
+        Success status and updated widget data
+    """
+    try:
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if canvas is None:
+            return {"success": False, "error": f"Canvas '{canvas_id}' not found"}
+        widget = canvas.widget_registry.get(widget_id)
+        if widget is None:
+            return {"success": False, "error": f"Widget '{widget_id}' not found"}
+        if not isinstance(widget, ImageWidget):
+            return {
+                "success": False,
+                "error": f"Widget '{widget_id}' is not an ImageWidget",
+            }
+        if file_path is not None:
+            widget.state.properties["file_path"] = file_path
+        if width is not None:
+            widget.state.properties["width"] = width
+        if height is not None:
+            widget.state.properties["height"] = height
+        return {"success": True, "data": widget.serialize()}
+    except Exception as e:
+        logger.error(f"Error updating image widget '{widget_id}': {e}")
         return {"success": False, "error": str(e)}
 
 

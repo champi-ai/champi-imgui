@@ -34,6 +34,7 @@ dependencies = [
     "typing-extensions>=4.0.0",
     "pydantic>=2.0.0",
     "numpy>=2.3.4",
+    "pillow>=10.0.0",
 ]
 
 [project.optional-dependencies]
@@ -148,6 +149,7 @@ module = [
     "champi_gen_ui.*",
     "pytest",
     "_pytest.*",
+    "OpenGL.*",
 ]
 ignore_missing_imports = true
 
