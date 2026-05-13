@@ -1611,13 +1611,9 @@ def add_tab_item(
             }
 
         tab_item = TabItemWidget(widget_id, label=label, closable=closable)
-
-        def _wire() -> None:
-            tab_bar.add_tab_item(tab_item)
-            canvas.widget_registry.add(tab_item)
-
+        tab_bar.add_tab_item(tab_item)
         canvas_manager.ensure_canvas_running(canvas_id)
-        canvas.queue_command(_wire)
+        canvas.add_widget(tab_item)
         return {"success": True, "data": tab_item.serialize()}
     except Exception as e:
         logger.error(f"Error adding tab item '{widget_id}': {e}")
