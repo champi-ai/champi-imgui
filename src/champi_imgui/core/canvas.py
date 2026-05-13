@@ -114,9 +114,24 @@ class Canvas:
         runner_params.fps_idling.enable_idling = True
         runner_params.fps_idling.fps_idle = 10  # Low FPS when idle
 
+        # ImPlot context — must be created after ImGui init on the render thread
+        from imgui_bundle import implot
+
+        _implot_ctx: object = None
+
+        def _post_init() -> None:
+            nonlocal _implot_ctx
+            _implot_ctx = implot.create_context()
+
+        def _before_exit() -> None:
+            if _implot_ctx is not None:
+                implot.destroy_context(_implot_ctx)
+            self._on_exit()
+
         # Callbacks
+        runner_params.callbacks.post_init = _post_init
         runner_params.callbacks.show_gui = self._render_frame
-        runner_params.callbacks.before_exit = self._on_exit
+        runner_params.callbacks.before_exit = _before_exit
 
         # Run ImGui app (blocking until window closed)
         try:
