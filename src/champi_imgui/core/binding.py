@@ -186,9 +186,7 @@ class BindingManager:
             widget = self._widget_lookup(widget_id)
             if widget is not None:
                 widget.state.properties[property_name] = value
-                logger.debug(
-                    f"Binding updated {widget_id}.{property_name} = {value}"
-                )
+                logger.debug(f"Binding updated {widget_id}.{property_name} = {value}")
                 return
         from champi_imgui.core.state import widget_updated
 

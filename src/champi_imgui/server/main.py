@@ -116,6 +116,7 @@ animation_manager = AnimationManager()
 notification_manager = NotificationManager()
 template_manager = TemplateManager()
 
+
 # Wire binding manager to widget registry so data-store changes propagate to
 # state.properties before the next render frame.
 def _resolve_widget(widget_id: str) -> Any:
