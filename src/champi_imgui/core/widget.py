@@ -12,6 +12,18 @@ from loguru import logger
 
 from champi_imgui.core.state import WidgetState, widget_created, widget_updated
 
+_event_queue = None
+
+
+def set_event_queue(queue: Any) -> None:
+    """Wire a global EventQueue so all widget callbacks push events into it.
+
+    Args:
+        queue: An EventQueue instance (or None to detach)
+    """
+    global _event_queue
+    _event_queue = queue
+
 
 class Widget(ABC):
     """Base class for all widgets.
@@ -111,9 +123,12 @@ class Widget(ABC):
         Returns:
             Callback return value, or None if no callback registered
         """
+        result = None
         if event in self._callbacks:
-            return self._callbacks[event](*args, **kwargs)
-        return None
+            result = self._callbacks[event](*args, **kwargs)
+        if _event_queue is not None:
+            _event_queue.push(self.widget_id, event, {"args": list(args)})
+        return result
 
     def serialize(self) -> dict[str, Any]:
         """Serialize widget state to dictionary.
