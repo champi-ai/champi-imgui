@@ -112,7 +112,17 @@ class BindingManager:
     def __init__(self, data_store: DataStore) -> None:
         self.data_store = data_store
         self.bindings: dict[str, list[BindingConfig]] = {}
+        self._widget_lookup: Callable[[str], Any] | None = None
         logger.debug("Initialized BindingManager")
+
+    def set_widget_lookup(self, lookup: Callable[[str], Any]) -> None:
+        """Register a callable used to resolve a widget by its ID.
+
+        Args:
+            lookup: Callable that accepts a widget_id string and returns the
+                    widget instance, or None if the widget does not exist.
+        """
+        self._widget_lookup = lookup
 
     def bind(
         self,
@@ -172,6 +182,14 @@ class BindingManager:
     def _update_widget_property(
         self, widget_id: str, property_name: str, value: Any
     ) -> None:
+        if self._widget_lookup is not None:
+            widget = self._widget_lookup(widget_id)
+            if widget is not None:
+                widget.state.properties[property_name] = value
+                logger.debug(
+                    f"Binding updated {widget_id}.{property_name} = {value}"
+                )
+                return
         from champi_imgui.core.state import widget_updated
 
         widget_updated.send(

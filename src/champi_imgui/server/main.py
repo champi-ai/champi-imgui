@@ -116,6 +116,18 @@ animation_manager = AnimationManager()
 notification_manager = NotificationManager()
 template_manager = TemplateManager()
 
+# Wire binding manager to widget registry so data-store changes propagate to
+# state.properties before the next render frame.
+def _resolve_widget(widget_id: str) -> Any:
+    for canvas in canvas_manager.canvases.values():
+        widget = canvas.widget_registry.get(widget_id)
+        if widget is not None:
+            return widget
+    return None
+
+
+binding_manager.set_widget_lookup(_resolve_widget)
+
 # Register preset themes at startup
 for _theme in THEME_PRESETS.values():
     theme_manager.register_theme(_theme)
@@ -1213,7 +1225,7 @@ def add_progress_bar(
     """
     try:
         widget = ProgressBarWidget(
-            widget_id, value=value, overlay=overlay, size=(width, height)
+            widget_id, fraction=value, overlay=overlay, size=(width, height)
         )
         return _create_widget_in_canvas(canvas_id, widget)
     except Exception as e:
