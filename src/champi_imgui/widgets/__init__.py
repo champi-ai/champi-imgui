@@ -50,6 +50,11 @@ from champi_imgui.widgets.display import (
     ImageWidget,
     PlotLinesWidget,
 )
+from champi_imgui.widgets.drawing import (
+    BrushWidget,
+    CanvasMenuWidget,
+    DrawingWidget,
+)
 from champi_imgui.widgets.input import (
     CheckboxFlagsWidget,
     ComboWidget,
@@ -95,9 +100,11 @@ from champi_imgui.widgets.slider import (
 __all__ = [
     "ArrowButtonWidget",
     "BarChartWidget",
+    "BrushWidget",
     "BulletTextWidget",
     "BulletWidget",
     "ButtonWidget",
+    "CanvasMenuWidget",
     "CheckboxFlagsWidget",
     "CheckboxWidget",
     "ChildWindowWidget",
@@ -111,6 +118,7 @@ __all__ = [
     "ContextMenuWidget",
     "DragFloatWidget",
     "DragIntWidget",
+    "DrawingWidget",
     "DummyWidget",
     "ErrorBarsWidget",
     "GroupWidget",
