@@ -300,6 +300,34 @@ class DrawingWidget(Widget):
             # Solid line with anti-aliasing
             draw_list.add_line(start, end, imgui.ImCol(color), brush_size)
 
+    def serialize(self) -> dict[str, Any]:
+        """Serialize widget state for storage/transfer.
+
+        Returns:
+            Dictionary with widget_id, widget_type, and properties
+        """
+        return {
+            "widget_id": self.widget_id,
+            "widget_type": "DrawingWidget",
+            "properties": self.state.properties.copy(),
+            "position": None,
+            "size": None,
+            "visible": self.state.visible,
+            "enabled": self.state.enabled,
+            "parent": self.state.parent,
+            "children": [],
+            "callbacks": self.state.callbacks.copy(),
+            "data_bindings": self.state.data_bindings.copy(),
+        }
+
+    def trigger_callback(self, name: str) -> None:
+        """Trigger a callback by name.
+
+        Args:
+            name: Callback name to trigger (e.g., "on_click", "on_undo")
+        """
+        self.state.callbacks.get(name, lambda: None)()
+
 
 class BrushWidget(Widget):
     """Brush controls sidebar for the drawing widget.
@@ -406,6 +434,34 @@ class BrushWidget(Widget):
             20,  # segments
         )
 
+    def serialize(self) -> dict[str, Any]:
+        """Serialize widget state for storage/transfer.
+
+        Returns:
+            Dictionary with widget_id, widget_type, and properties
+        """
+        return {
+            "widget_id": self.widget_id,
+            "widget_type": "BrushWidget",
+            "properties": self.state.properties.copy(),
+            "position": None,
+            "size": None,
+            "visible": self.state.visible,
+            "enabled": self.state.enabled,
+            "parent": self.state.parent,
+            "children": [],
+            "callbacks": self.state.callbacks.copy(),
+            "data_bindings": self.state.data_bindings.copy(),
+        }
+
+    def trigger_callback(self, name: str) -> None:
+        """Trigger a callback by name.
+
+        Args:
+            name: Callback name to trigger
+        """
+        self.state.callbacks.get(name, lambda: None)()
+
 
 class CanvasMenuWidget(Widget):
     """Context menu for canvas actions.
@@ -510,3 +566,31 @@ class CanvasMenuWidget(Widget):
 
         self.state.properties["menu_open"] = False
         return
+
+    def serialize(self) -> dict[str, Any]:
+        """Serialize widget state for storage/transfer.
+
+        Returns:
+            Dictionary with widget_id, widget_type, and properties
+        """
+        return {
+            "widget_id": self.widget_id,
+            "widget_type": "CanvasMenuWidget",
+            "properties": self.state.properties.copy(),
+            "position": None,
+            "size": None,
+            "visible": self.state.visible,
+            "enabled": self.state.enabled,
+            "parent": self.state.parent,
+            "children": [],
+            "callbacks": self.state.callbacks.copy(),
+            "data_bindings": self.state.data_bindings.copy(),
+        }
+
+    def trigger_callback(self, name: str) -> None:
+        """Trigger a callback by name.
+
+        Args:
+            name: Callback name to trigger (e.g., "on_click", "on_undo")
+        """
+        self.state.callbacks.get(name, lambda: None)()
