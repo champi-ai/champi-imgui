@@ -6,6 +6,7 @@ This module provides widgets for freehand drawing and whiteboard interaction:
 - CanvasMenuWidget: Context menu for canvas actions
 """
 
+import math
 from typing import Any
 
 from imgui_bundle import imgui
@@ -49,6 +50,8 @@ class DrawingWidget(Widget):
         props["size"] = size
         props["strokes"] = []
         props["current_stroke"] = []
+        props["shapes"] = []
+        props["annotations"] = []
         super().__init__(widget_id, **props)
 
     def render(self) -> None:  # pragma: no cover
@@ -115,6 +118,13 @@ class DrawingWidget(Widget):
                 canvas_min,
             )
 
+        # Draw LLM-added shapes
+        for shape in self.state.properties.get("shapes", []):
+            self._draw_shape(draw_list, shape, canvas_min)
+
+        # Draw text annotations
+        self._draw_annotations(draw_list, canvas_min)
+
         # Handle mouse input — must come after invisible_button for is_item_hovered
         if imgui.is_item_hovered():
             imgui.set_mouse_cursor(imgui.MouseCursor_.hand)
@@ -174,10 +184,156 @@ class DrawingWidget(Widget):
             for i in range(0, len(vec2_points), 3):
                 draw_list.add_circle_filled(vec2_points[i], brush_size * 0.5, color_u32)
 
+    def _draw_shape(  # pragma: no cover
+        self,
+        draw_list: imgui.ImDrawList,
+        shape: dict[str, Any],
+        canvas_min: imgui.ImVec2,
+    ) -> None:
+        """Draw a single LLM-added shape.
+
+        Args:
+            draw_list: ImGui window draw list
+            shape: Shape dict with type, color, thickness, and coordinates
+            canvas_min: Canvas origin in screen coordinates
+        """
+        color_u32 = imgui.color_convert_float4_to_u32(imgui.ImVec4(*shape["color"]))
+        t = shape.get("thickness", 2.0)
+        ox, oy = canvas_min.x, canvas_min.y
+        stype = shape["type"]
+
+        if stype == "rect":
+            draw_list.add_rect(
+                imgui.ImVec2(ox + shape["x1"], oy + shape["y1"]),
+                imgui.ImVec2(ox + shape["x2"], oy + shape["y2"]),
+                color_u32,
+                0.0,
+                0,
+                t,
+            )
+        elif stype == "circle":
+            draw_list.add_circle(
+                imgui.ImVec2(ox + shape["cx"], oy + shape["cy"]),
+                shape["radius"],
+                color_u32,
+                0,
+                t,
+            )
+        elif stype in ("line", "arrow"):
+            draw_list.add_line(
+                imgui.ImVec2(ox + shape["x1"], oy + shape["y1"]),
+                imgui.ImVec2(ox + shape["x2"], oy + shape["y2"]),
+                color_u32,
+                t,
+            )
+            if stype == "arrow":
+                dx = shape["x2"] - shape["x1"]
+                dy = shape["y2"] - shape["y1"]
+                length = math.hypot(dx, dy)
+                if length > 0:
+                    ux, uy = dx / length, dy / length
+                    head = 12.0
+                    p = imgui.ImVec2(ox + shape["x2"], oy + shape["y2"])
+                    p1 = imgui.ImVec2(
+                        p.x - ux * head + uy * head * 0.4,
+                        p.y - uy * head - ux * head * 0.4,
+                    )
+                    p2 = imgui.ImVec2(
+                        p.x - ux * head - uy * head * 0.4,
+                        p.y - uy * head + ux * head * 0.4,
+                    )
+                    draw_list.add_triangle_filled(p, p1, p2, color_u32)
+
+    def _draw_annotations(  # pragma: no cover
+        self,
+        draw_list: imgui.ImDrawList,
+        canvas_min: imgui.ImVec2,
+    ) -> None:
+        """Draw all text annotations on the canvas.
+
+        Args:
+            draw_list: ImGui window draw list
+            canvas_min: Canvas origin in screen coordinates
+        """
+        for annotation in self.state.properties.get("annotations", []):
+            if annotation.get("type") == "text":
+                color_u32 = imgui.color_convert_float4_to_u32(
+                    imgui.ImVec4(*annotation["color"])
+                )
+                draw_list.add_text(
+                    imgui.ImVec2(
+                        canvas_min.x + annotation["x"],
+                        canvas_min.y + annotation["y"],
+                    ),
+                    color_u32,
+                    annotation["text"],
+                )
+
+    def add_shape(
+        self,
+        shape_type: str,
+        color: tuple[float, float, float, float] = (0.0, 0.5, 1.0, 1.0),
+        thickness: float = 2.0,
+        **coords: float,
+    ) -> None:
+        """Add a shape to the canvas.
+
+        Args:
+            shape_type: One of "rect", "circle", "arrow", "line"
+            color: RGBA color tuple (0.0-1.0 range)
+            thickness: Line thickness in pixels
+            **coords: Coordinate arguments. rect/arrow/line use x1, y1, x2, y2;
+                circle uses cx, cy, radius. All values are canvas-relative.
+        """
+        shape: dict[str, Any] = {
+            "type": shape_type,
+            "color": color,
+            "thickness": thickness,
+            **coords,
+        }
+        shapes: list[dict[str, Any]] = self.state.properties.get("shapes", [])
+        shapes.append(shape)
+        self.state.properties["shapes"] = shapes
+
+    def add_annotation(
+        self,
+        x: float,
+        y: float,
+        text: str,
+        color: tuple[float, float, float, float] = (1.0, 1.0, 1.0, 1.0),
+        font_size: float = 13.0,
+    ) -> None:
+        """Add a text annotation to the canvas.
+
+        Args:
+            x: Canvas-relative x position
+            y: Canvas-relative y position
+            text: Text to display
+            color: RGBA color tuple (0.0-1.0 range)
+            font_size: Font size in pixels (informational; ImGui uses current font)
+        """
+        annotation: dict[str, Any] = {
+            "type": "text",
+            "x": x,
+            "y": y,
+            "text": text,
+            "color": color,
+            "font_size": font_size,
+        }
+        annotations: list[dict[str, Any]] = self.state.properties.get("annotations", [])
+        annotations.append(annotation)
+        self.state.properties["annotations"] = annotations
+
+    def clear_shapes(self) -> None:
+        """Remove all shapes from the canvas."""
+        self.state.properties["shapes"] = []
+
     def clear(self) -> None:
-        """Clear all strokes from the canvas."""
+        """Clear all strokes, shapes, and annotations from the canvas."""
         self.state.properties["strokes"] = []
         self.state.properties["current_stroke"] = []
+        self.clear_shapes()
+        self.state.properties["annotations"] = []
 
     def undo(self) -> None:
         """Remove the last completed stroke."""
@@ -187,6 +343,9 @@ class DrawingWidget(Widget):
         if strokes:
             strokes.pop()
             self.state.properties["strokes"] = strokes
+
+    def redo(self) -> None:
+        """Redo is a no-op placeholder; redo state is not tracked."""
 
 
 class BrushWidget(Widget):
