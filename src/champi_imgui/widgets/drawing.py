@@ -14,13 +14,11 @@ from champi_imgui.core.widget import Widget
 
 
 class DrawingWidget(Widget):
-    """Freehand drawing widget with undo/redo support.
+    """Freehand drawing widget with stroke-based undo support.
 
-    A drawing canvas that accepts mouse input for freehand sketching,
-    with brush size/color controls and undo/redo history.
-
-    This widget renders directly into its available content region,
-    capturing mouse movement to draw strokes.
+    A drawing canvas that accepts mouse input for freehand sketching.
+    Strokes are stored as lists of (x, y) points and replayed each frame
+    using ImGui draw list primitives.
     """
 
     def __init__(
@@ -28,13 +26,9 @@ class DrawingWidget(Widget):
         widget_id: str,
         color: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 1.0),
         brush_size: float = 5.0,
-        line_width: float = 1.0,
-        is_clear: bool = False,
         is_eraser: bool = False,
         brush_style: str = "solid",
-        history_size: int = 10,
-        history: list[dict[str, Any]] | None = None,
-        history_index: int = -1,
+        size: tuple[float, float] = (800.0, 600.0),
         **props: Any,
     ):
         """Initialize drawing widget.
@@ -42,291 +36,157 @@ class DrawingWidget(Widget):
         Args:
             widget_id: Unique widget identifier
             color: Brush color as (r, g, b, a) tuple, 0.0-1.0 range
-            brush_size: Brush radius in pixels
-            line_width: Line width for text/annotation
-            is_clear: Whether canvas should be cleared on render
+            brush_size: Brush thickness in pixels
             is_eraser: Whether brush is in eraser mode
             brush_style: "solid", "dashed", or "dots"
-            history_size: Maximum undo history size
-            history: Pre-populated undo history (list of snapshots)
-            history_index: Current history index for undo/redo
-            **props: Additional properties (size, visible, etc.)
+            size: Canvas size as (width, height) in pixels
+            **props: Additional properties (visible, enabled, etc.)
         """
         props["color"] = color
         props["brush_size"] = brush_size
-        props["line_width"] = line_width
-        props["is_clear"] = is_clear
         props["is_eraser"] = is_eraser
         props["brush_style"] = brush_style
-        props["history_size"] = history_size
-        props["history"] = history or []
-        props["history_index"] = history_index
+        props["size"] = size
+        props["strokes"] = []
+        props["current_stroke"] = []
         super().__init__(widget_id, **props)
 
-    def render(self) -> None:
+    def render(self) -> None:  # pragma: no cover
         """Render the drawing canvas and handle mouse input.
 
-        This method captures mouse input during rendering to enable
-        freehand drawing. The canvas is redrawn each frame based on
-        the last history snapshot.
-
-        Returns:
-            None (rendering handled via ImGui)
+        Each frame: replay all stored strokes, then handle in-progress
+        stroke from mouse input.
         """
         if not self.state.visible:
             return
 
-        color = self.state.properties.get("color", (1.0, 0.0, 0.0, 1.0))
-        brush_size = self.state.properties.get("brush_size", 5.0)
-        is_eraser = self.state.properties.get("is_eraser", False)
-        brush_style = self.state.properties.get("brush_style", "solid")
-        history = self.state.properties.get("history", [])
-        history_index = self.state.properties.get("history_index", -1)
-
-        # Get available render region
-        visible, width, height = imgui.get_content_region_avail()
-
-        if not visible:
-            return
-
-        # Determine drawing color
-        draw_color = (1.0, 1.0, 1.0, 1.0) if is_eraser else color
-
-        # Handle canvas clear command
-        if self.state.properties.get("is_clear", False):
-            self.state.properties["is_clear"] = False
-            self._clear_canvas(width, height)
-
-        # Restore last canvas state from history
-        self._restore_canvas(history, history_index, draw_color, width, height)
-
-        # Handle mouse input for drawing
-        self._handle_mouse_input(width, height, draw_color, brush_size, brush_style)
-
-    def _clear_canvas(self, width: float, height: float) -> None:
-        """Clear the canvas by resetting history.
-
-        Args:
-            width: Canvas width in pixels
-            height: Canvas height in pixels
-        """
-        self.state.properties["history"] = [
-            {"data": [(0.0, 0.0)] * int(width * height)},
-        ]
-        self.state.properties["history_index"] = 0
-
-    def _restore_canvas(
-        self,
-        history: list[dict[str, Any]],
-        index: int,
-        color: tuple[float, ...],
-        width: float,
-        height: float,
-    ) -> None:
-        """Restore canvas from a history snapshot.
-
-        Args:
-            history: List of history snapshots
-            index: History index to restore
-            color: Current drawing color
-            width: Canvas width
-            height: Canvas height
-        """
-        if not history:
-            return
-
-        if index < 0 or index >= len(history):
-            return
-
-        snapshot = history[index].get("data", [])
-        if not snapshot:
-            return
-
-        # Convert snapshot data to ImGui-compatible format
-        # For simplicity, we render a simple solid color fill
-        # A full bitmap approach would require OpenGL textures
-        self._render_from_snapshot(snapshot, color, width, height)
-
-    def _render_from_snapshot(
-        self,
-        snapshot: list[tuple],
-        color: tuple[float, ...],
-        width: float,
-        height: float,
-    ) -> None:
-        """Render canvas from snapshot data.
-
-        For a simple implementation, we use ImGui primitives
-        to approximate the snapshot. For full functionality,
-        OpenGL textures would be needed.
-
-        Args:
-            snapshot: Snapshot pixel data
-            color: Color to use
-            width: Canvas width
-            height: Canvas height
-        """
-        # Simple implementation: just draw a filled rectangle
-        # representing the canvas area
-        imgui.push_style_color(imgui.ColMod_.frame_bg, (*color[:3], 1.0))
-        imgui.push_style_color(imgui.ColMod_.frame_border, (0.0, 0.0, 0.0, 0.0))
-        imgui.push_style_color(imgui.ColMod_.frame_bg_hover, (*color[:3], 1.0))
-        imgui.push_style_color(imgui.ColMod_.frame_border_hover, (0.0, 0.0, 0.0, 0.0))
-
-        # Draw canvas background
-        imgui.get_window_draw_list().add_rect(
-            imgui.ImVec2(0, 0),
-            imgui.ImVec2(width, height),
-            imgui.ImCol((*color[:3], 1.0)),
-            1.0,  # rounding
-            0,  # border rounding
-            2,  # thickness
+        color: tuple[float, float, float, float] = self.state.properties.get(
+            "color", (1.0, 0.0, 0.0, 1.0)
+        )
+        brush_size: float = self.state.properties.get("brush_size", 5.0)
+        is_eraser: bool = self.state.properties.get("is_eraser", False)
+        brush_style: str = self.state.properties.get("brush_style", "solid")
+        canvas_size: tuple[float, float] = self.state.properties.get(
+            "size", (800.0, 600.0)
+        )
+        strokes: list[list[tuple[float, float]]] = self.state.properties.get(
+            "strokes", []
+        )
+        current_stroke: list[tuple[float, float]] = self.state.properties.get(
+            "current_stroke", []
         )
 
-        imgui.pop_style_color(3)
+        draw_color: tuple[float, float, float, float] = (
+            (1.0, 1.0, 1.0, 1.0) if is_eraser else color
+        )
 
-    def _handle_mouse_input(
-        self,
-        width: float,
-        height: float,
-        color: tuple[float, ...],
-        brush_size: float,
-        brush_style: str,
-    ) -> None:
-        """Handle mouse input for drawing.
+        # Create interactable region — this is the sole source of hover/click state
+        imgui.invisible_button(
+            "##canvas_" + self.widget_id,
+            imgui.ImVec2(canvas_size[0], canvas_size[1]),
+        )
+        canvas_min = imgui.get_item_rect_min()
+        canvas_max = imgui.get_item_rect_max()
 
-        Captures mouse position during render and draws strokes
-        when the mouse is moving.
-
-        Args:
-            width: Canvas width
-            height: Canvas height
-            color: Drawing color
-            brush_size: Brush radius
-            brush_style: Brush style (solid/dashed/dots)
-        """
-        # Get mouse position relative to canvas
-        mouse_pos = imgui.get_mouse_pos()
-        canvas_x = mouse_pos[0]
-        canvas_y = mouse_pos[1]
-
-        # Check if mouse is over the canvas
-        is_mouse_over = imgui.is_item_hoverable()
-
-        # Set mouse cursor to hand when hovering
-        if is_mouse_over:
-            imgui.set_mouse_cursor(imgui.MouseCursor_.Hand)
-
-        # Handle left mouse button for drawing
-        if is_mouse_over:
-            # Check mouse button states
-            mouse_down = imgui.is_mouse_button_down(imgui.MouseButton_.Left)
-
-            # Draw line segment if mouse is moving and button is held
-            if mouse_down and is_mouse_over:
-                # Get last mouse position for line drawing
-                last_mouse_x = self.state.properties.get("last_mouse_x", canvas_x)
-                last_mouse_y = self.state.properties.get("last_mouse_y", canvas_y)
-
-                if last_mouse_x is not None and last_mouse_y is not None:
-                    # Draw a line segment
-                    start_pos = imgui.ImVec2(last_mouse_x, last_mouse_y)
-                    end_pos = imgui.ImVec2(canvas_x, canvas_y)
-
-                    self._draw_line(start_pos, end_pos, color, brush_size, brush_style)
-
-                    # Update last position
-                    self.state.properties["last_mouse_x"] = canvas_x
-                    self.state.properties["last_mouse_y"] = canvas_y
-
-        # Clear temporary state when not hovering
-        if not is_mouse_over:
-            self.state.properties["last_mouse_x"] = None
-            self.state.properties["last_mouse_y"] = None
-
-    def _draw_line(
-        self,
-        start: imgui.ImVec2,
-        end: imgui.ImVec2,
-        color: tuple[float, ...],
-        brush_size: float,
-        brush_style: str,
-    ) -> None:
-        """Draw a line segment with the given style.
-
-        Args:
-            start: Starting point (x, y)
-            end: Ending point (x, y)
-            color: Line color (r, g, b, a)
-            brush_size: Radius of brush
-            brush_style: "solid", "dashed", or "dots"
-        """
         draw_list = imgui.get_window_draw_list()
 
-        if brush_style == "dashed":
-            # Draw dashed line with gaps
-            gap = 4.0
-            seg = brush_size * 2
+        # Draw canvas background
+        draw_list.add_rect_filled(
+            canvas_min,
+            canvas_max,
+            imgui.color_convert_float4_to_u32(imgui.ImVec4(0.15, 0.15, 0.15, 1.0)),
+        )
 
-            dx = end[0] - start[0]
-            dy = end[1] - start[1]
-            length = (dx**2 + dy**2) ** 0.5
+        # Replay all completed strokes
+        for stroke in strokes:
+            if len(stroke) >= 2:
+                self._draw_stroke(
+                    draw_list, stroke, draw_color, brush_size, brush_style, canvas_min
+                )
 
-            if length > 0:
-                # Draw segments with gaps
-                num_segments = int(length / (seg + gap))
-                for i in range(num_segments):
-                    t = float(i) / num_segments
-                    p1 = start + (end - start) * t
-                    p2 = start + (end - start) * min(t + seg / length, 1.0)
-                    draw_list.add_line(p1, p2, imgui.ImCol(color), brush_size)
+        # Draw in-progress stroke
+        if len(current_stroke) >= 2:
+            self._draw_stroke(
+                draw_list,
+                current_stroke,
+                draw_color,
+                brush_size,
+                brush_style,
+                canvas_min,
+            )
 
-        elif brush_style == "dots":
-            # Draw dots along the line
-            dx = end[0] - start[0]
-            dy = end[1] - start[1]
-            length = (dx**2 + dy**2) ** 0.5
+        # Handle mouse input — must come after invisible_button for is_item_hovered
+        if imgui.is_item_hovered():
+            imgui.set_mouse_cursor(imgui.MouseCursor_.hand)
+            mouse_pos = imgui.get_mouse_pos()
+            rel_x = mouse_pos.x - canvas_min.x
+            rel_y = mouse_pos.y - canvas_min.y
 
-            if length > 0:
-                num_dots = max(1, int(length / (brush_size * 3)))
-                for i in range(num_dots):
-                    t = float(i) / num_dots
-                    p = start + (end - start) * t
-                    draw_list.add_circle(
-                        p, brush_size, imgui.ImCol(color), brush_size, 32
-                    )
+            if imgui.is_mouse_down(0):
+                current_stroke.append((rel_x, rel_y))
+                self.state.properties["current_stroke"] = current_stroke
+            elif imgui.is_mouse_released(0) and current_stroke:
+                strokes.append(list(current_stroke))
+                self.state.properties["strokes"] = strokes
+                self.state.properties["current_stroke"] = []
+        elif imgui.is_mouse_released(0) and current_stroke:
+            # Mouse released outside canvas — commit the in-progress stroke
+            strokes.append(list(current_stroke))
+            self.state.properties["strokes"] = strokes
+            self.state.properties["current_stroke"] = []
 
-        else:
-            # Solid line with anti-aliasing
-            draw_list.add_line(start, end, imgui.ImCol(color), brush_size)
-
-    def serialize(self) -> dict[str, Any]:
-        """Serialize widget state for storage/transfer.
-
-        Returns:
-            Dictionary with widget_id, widget_type, and properties
-        """
-        return {
-            "widget_id": self.widget_id,
-            "widget_type": "DrawingWidget",
-            "properties": self.state.properties.copy(),
-            "position": None,
-            "size": None,
-            "visible": self.state.visible,
-            "enabled": self.state.enabled,
-            "parent": self.state.parent,
-            "children": [],
-            "callbacks": self.state.callbacks.copy(),
-            "data_bindings": self.state.data_bindings.copy(),
-        }
-
-    def trigger_callback(self, name: str) -> None:
-        """Trigger a callback by name.
+    def _draw_stroke(  # pragma: no cover
+        self,
+        draw_list: imgui.ImDrawList,
+        stroke: list[tuple[float, float]],
+        color: tuple[float, float, float, float],
+        brush_size: float,
+        brush_style: str,
+        canvas_min: imgui.ImVec2,
+    ) -> None:
+        """Draw a single stroke using the configured style.
 
         Args:
-            name: Callback name to trigger (e.g., "on_click", "on_undo")
+            draw_list: ImGui window draw list
+            stroke: List of canvas-relative (x, y) points
+            color: RGBA color tuple (0.0-1.0 range)
+            brush_size: Line thickness in pixels
+            brush_style: "solid", "dashed", or "dots"
+            canvas_min: Canvas origin in screen coordinates
         """
-        self.state.callbacks.get(name, lambda: None)()
+        color_u32 = imgui.color_convert_float4_to_u32(imgui.ImVec4(*color))
+        vec2_points: list[imgui.ImVec2] = [
+            imgui.ImVec2(canvas_min.x + x, canvas_min.y + y) for x, y in stroke
+        ]
+
+        if brush_style == "solid":
+            draw_list.add_polyline(vec2_points, color_u32, 0, brush_size)  # type: ignore[arg-type]
+
+        elif brush_style == "dashed":
+            # Draw every other segment
+            for i in range(0, len(vec2_points) - 1, 2):
+                draw_list.add_line(
+                    vec2_points[i], vec2_points[i + 1], color_u32, brush_size
+                )
+
+        elif brush_style == "dots":
+            # Draw a filled circle at every 3rd point
+            for i in range(0, len(vec2_points), 3):
+                draw_list.add_circle_filled(vec2_points[i], brush_size * 0.5, color_u32)
+
+    def clear(self) -> None:
+        """Clear all strokes from the canvas."""
+        self.state.properties["strokes"] = []
+        self.state.properties["current_stroke"] = []
+
+    def undo(self) -> None:
+        """Remove the last completed stroke."""
+        strokes: list[list[tuple[float, float]]] = self.state.properties.get(
+            "strokes", []
+        )
+        if strokes:
+            strokes.pop()
+            self.state.properties["strokes"] = strokes
 
 
 class BrushWidget(Widget):
@@ -364,103 +224,80 @@ class BrushWidget(Widget):
         props["brush_style"] = brush_style
         super().__init__(widget_id, **props)
 
-    def render(self) -> None:
-        """Render brush controls.
-
-        Args:
-            width: Unused (available via ImGui)
-            height: Unused (available via ImGui)
-        """
+    def render(self) -> None:  # pragma: no cover
+        """Render brush controls."""
         if not self.state.visible:
             return
 
-        color = self.state.properties.get("color", (1.0, 0.0, 0.0, 1.0))
-        brush_size = self.state.properties.get("brush_size", 5.0)
-        line_width = self.state.properties.get("line_width", 1.0)
-        is_eraser = self.state.properties.get("is_eraser", False)
-        brush_style = self.state.properties.get("brush_style", "solid")
+        color: tuple[float, float, float, float] = self.state.properties.get(
+            "color", (1.0, 0.0, 0.0, 1.0)
+        )
+        brush_size: float = self.state.properties.get("brush_size", 5.0)
+        line_width: float = self.state.properties.get("line_width", 1.0)
+        is_eraser: bool = self.state.properties.get("is_eraser", False)
+        brush_style: str = self.state.properties.get("brush_style", "solid")
 
-        # Title
         imgui.text("Brush Settings")
         imgui.separator()
 
-        # Color picker
         imgui.push_item_width(160)
         imgui.set_next_item_width(160)
-        imgui.color_picker4("##color", color)
+        changed, new_color = imgui.color_picker4("##color", color)
+        if changed:
+            self.state.properties["color"] = new_color
         imgui.pop_item_width()
 
-        # Eraser toggle
         imgui.push_item_width(150)
         imgui.set_next_item_width(150)
-        checked = imgui.checkbox("Eraser", is_eraser)
-        self.state.properties["is_eraser"] = checked
+        changed, new_eraser = imgui.checkbox("Eraser", is_eraser)
+        if changed:
+            self.state.properties["is_eraser"] = new_eraser
         imgui.pop_item_width()
 
-        # Brush style options
-        style_options = [
+        style_options: list[tuple[str, str]] = [
             ("Solid", "solid"),
             ("Dashed", "dashed"),
             ("Dotted", "dots"),
         ]
-        style_names, style_values = zip(*style_options, strict=True)
-        current_style_idx = style_names.index(brush_style)
-        selected_style = imgui.combo("##brush_style", current_style_idx, style_names, 0)
-        if selected_style != current_style_idx:
-            brush_style = style_values[selected_style]
-            self.state.properties["brush_style"] = brush_style
+        style_names = [s for s, _ in style_options]
+        style_values = [v for _, v in style_options]
+        current_style_idx = (
+            style_values.index(brush_style) if brush_style in style_values else 0
+        )
+        changed, new_style_idx = imgui.combo(
+            "##brush_style", current_style_idx, style_names, 0
+        )
+        if changed:
+            self.state.properties["brush_style"] = style_values[new_style_idx]
 
-        # Brush size slider
         imgui.push_item_width(150)
         imgui.set_next_item_width(150)
-        imgui.slider_float("##brush_size", brush_size, 1.0, 50.0)
+        changed, new_size = imgui.slider_float("##brush_size", brush_size, 1.0, 50.0)
+        if changed:
+            self.state.properties["brush_size"] = new_size
         imgui.pop_item_width()
 
-        # Line width slider
         imgui.text("Line Width")
-        imgui.slider_float("##line_width", line_width, 0.1, 10.0)
-        self.state.properties["line_width"] = line_width
+        changed, new_line_width = imgui.slider_float(
+            "##line_width", line_width, 0.1, 10.0
+        )
+        if changed:
+            self.state.properties["line_width"] = new_line_width
 
-        # Preview dot
         imgui.separator()
         imgui.text("Preview")
-        preview_dot_color = color if not is_eraser else (1.0, 1.0, 1.0, 1.0)
+        preview_dot_color: tuple[float, float, float, float] = (
+            (1.0, 1.0, 1.0, 1.0) if is_eraser else color
+        )
         preview_size = brush_size * 1.5
         draw_list = imgui.get_window_draw_list()
+        cursor = imgui.get_cursor_screen_pos()
         draw_list.add_circle(
-            imgui.ImVec2(100, 15),  # Fixed position for preview
+            imgui.ImVec2(cursor.x + preview_size + 5, cursor.y + preview_size + 5),
             preview_size,
-            imgui.ImCol(preview_dot_color),
-            20,  # segments
+            imgui.color_convert_float4_to_u32(imgui.ImVec4(*preview_dot_color)),
+            20,
         )
-
-    def serialize(self) -> dict[str, Any]:
-        """Serialize widget state for storage/transfer.
-
-        Returns:
-            Dictionary with widget_id, widget_type, and properties
-        """
-        return {
-            "widget_id": self.widget_id,
-            "widget_type": "BrushWidget",
-            "properties": self.state.properties.copy(),
-            "position": None,
-            "size": None,
-            "visible": self.state.visible,
-            "enabled": self.state.enabled,
-            "parent": self.state.parent,
-            "children": [],
-            "callbacks": self.state.callbacks.copy(),
-            "data_bindings": self.state.data_bindings.copy(),
-        }
-
-    def trigger_callback(self, name: str) -> None:
-        """Trigger a callback by name.
-
-        Args:
-            name: Callback name to trigger
-        """
-        self.state.callbacks.get(name, lambda: None)()
 
 
 class CanvasMenuWidget(Widget):
@@ -496,101 +333,65 @@ class CanvasMenuWidget(Widget):
         super().__init__(widget_id, **props)
         self._menu_open = False
 
-    def render(self) -> None:
+    def render(self) -> None:  # pragma: no cover
         """Render the canvas menu (if open).
 
         The menu is typically triggered by right-click on the
         DrawingWidget. Use imgui.open_context_menu() to open.
-
-        Returns:
-            True if menu is open and rendered
         """
         if not self.state.visible:
             return
 
-        can_undo = self.state.properties.get("can_undo", True)
-        can_redo = self.state.properties.get("can_redo", True)
-        history_size = self.state.properties.get("history_size", 10)
+        can_undo: bool = self.state.properties.get("can_undo", True)
+        can_redo: bool = self.state.properties.get("can_redo", True)
+        history_size: int = self.state.properties.get("history_size", 10)
+        menu_open: bool = self.state.properties.get("menu_open", False)
 
-        # Check if menu should be open (via context menu trigger)
-        menu_open = self.state.properties.get("menu_open", False)
-
-        if menu_open:
-            # Build menu items
-            if can_undo:
-                clicked, _ = imgui.menu_item("Undo")
-                if clicked:
-                    self.trigger_callback("on_undo")
-
-            if can_redo:
-                clicked, _ = imgui.menu_item("Redo")
-                if clicked:
-                    self.trigger_callback("on_redo")
-
-            if self.state.properties.get("is_eraser", False):
-                clicked, _ = imgui.menu_item("Clear (Eraser)")
-                if clicked:
-                    self.state.properties["is_eraser"] = False
-                    self.trigger_callback("on_clear_eraser")
-            else:
-                clicked, _ = imgui.menu_item("Clear Canvas")
-                if clicked:
-                    self.state.properties["is_clear"] = True
-                    self.trigger_callback("on_clear")
-
-            clicked, _ = imgui.menu_item("Invert Colors")
-            if clicked:
-                self.trigger_callback("on_invert")
-
-            clicked, _ = imgui.menu_item("Save as PNG...")
-            if clicked:
-                self.trigger_callback("on_save_png")
-
-            clicked, _ = imgui.menu_item("Export Commands...")
-            if clicked:
-                self.trigger_callback("on_export_commands")
-
-            clicked, _ = imgui.menu_item("Properties...")
-            if clicked:
-                self.trigger_callback("on_properties")
-
-            clicked, _ = imgui.menu_item("Close Menu")
-            if clicked:
-                self.state.properties["menu_open"] = False
-
-            imgui.separator()
-            imgui.text(f"History: {history_size}")
-
-            imgui.end()
+        if not menu_open:
+            self.state.properties["menu_open"] = False
             return
 
-        self.state.properties["menu_open"] = False
-        return
+        if can_undo:
+            clicked, _ = imgui.menu_item("Undo", "", False)
+            if clicked:
+                self.trigger_callback("on_undo")
 
-    def serialize(self) -> dict[str, Any]:
-        """Serialize widget state for storage/transfer.
+        if can_redo:
+            clicked, _ = imgui.menu_item("Redo", "", False)
+            if clicked:
+                self.trigger_callback("on_redo")
 
-        Returns:
-            Dictionary with widget_id, widget_type, and properties
-        """
-        return {
-            "widget_id": self.widget_id,
-            "widget_type": "CanvasMenuWidget",
-            "properties": self.state.properties.copy(),
-            "position": None,
-            "size": None,
-            "visible": self.state.visible,
-            "enabled": self.state.enabled,
-            "parent": self.state.parent,
-            "children": [],
-            "callbacks": self.state.callbacks.copy(),
-            "data_bindings": self.state.data_bindings.copy(),
-        }
+        if self.state.properties.get("is_eraser", False):
+            clicked, _ = imgui.menu_item("Clear (Eraser)", "", False)
+            if clicked:
+                self.state.properties["is_eraser"] = False
+                self.trigger_callback("on_clear_eraser")
+        else:
+            clicked, _ = imgui.menu_item("Clear Canvas", "", False)
+            if clicked:
+                self.trigger_callback("on_clear")
 
-    def trigger_callback(self, name: str) -> None:
-        """Trigger a callback by name.
+        clicked, _ = imgui.menu_item("Invert Colors", "", False)
+        if clicked:
+            self.trigger_callback("on_invert")
 
-        Args:
-            name: Callback name to trigger (e.g., "on_click", "on_undo")
-        """
-        self.state.callbacks.get(name, lambda: None)()
+        clicked, _ = imgui.menu_item("Save as PNG...", "", False)
+        if clicked:
+            self.trigger_callback("on_save_png")
+
+        clicked, _ = imgui.menu_item("Export Commands...", "", False)
+        if clicked:
+            self.trigger_callback("on_export_commands")
+
+        clicked, _ = imgui.menu_item("Properties...", "", False)
+        if clicked:
+            self.trigger_callback("on_properties")
+
+        clicked, _ = imgui.menu_item("Close Menu", "", False)
+        if clicked:
+            self.state.properties["menu_open"] = False
+
+        imgui.separator()
+        imgui.text(f"History: {history_size}")
+
+        imgui.end()

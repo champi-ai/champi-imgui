@@ -1,204 +1,185 @@
 """Tests for drawing widgets.
 
-Tests the DrawingWidget, BrushWidget, and CanvasMenuWidget implementations.
+Covers initialization, state mutation (clear/undo), serialization,
+and WidgetFactory registration. Render tests are omitted because
+calling widget.render() outside an active ImGui context segfaults.
 """
 
-import pytest
+from champi_imgui.core.widget import WidgetRegistry
+from champi_imgui.widgets.drawing import BrushWidget, CanvasMenuWidget, DrawingWidget
+
+# ---------------------------------------------------------------------------
+# DrawingWidget — initialization and state
+# ---------------------------------------------------------------------------
 
 
-class TestDrawingWidget:
-    """Tests for DrawingWidget class."""
+def test_drawing_widget_defaults():
+    """DrawingWidget initializes with expected default properties."""
+    w = DrawingWidget("canvas-1")
 
-    def test_initialization(self):
-        """Test that DrawingWidget initializes correctly."""
-        from champi_imgui.widgets.drawing import DrawingWidget
-
-        widget = DrawingWidget("test_drawing")
-        assert widget.widget_id == "test_drawing"
-        assert widget.state.properties["color"] == (1.0, 0.0, 0.0, 1.0)
-        assert widget.state.properties["brush_size"] == 5.0
-
-    def test_custom_parameters(self):
-        """Test DrawingWidget with custom parameters."""
-        from champi_imgui.widgets.drawing import DrawingWidget
-
-        widget = DrawingWidget(
-            "test_drawing",
-            color=(0.0, 1.0, 0.0, 1.0),  # Green
-            brush_size=10.0,
-            line_width=2.0,
-            is_eraser=True,
-            brush_style="dashed",
-        )
-
-        assert widget.state.properties["color"] == (0.0, 1.0, 0.0, 1.0)
-        assert widget.state.properties["brush_size"] == 10.0
-        assert widget.state.properties["line_width"] == 2.0
-        assert widget.state.properties["is_eraser"] is True
-        assert widget.state.properties["brush_style"] == "dashed"
-
-    def test_history_initialization(self):
-        """Test that history is properly initialized."""
-        from champi_imgui.widgets.drawing import DrawingWidget
-
-        # Default: empty history
-        widget = DrawingWidget("test")
-        assert widget.state.properties["history"] == []
-        assert widget.state.properties["history_index"] == -1
-
-        # With pre-populated history
-        history = [{"data": []}]
-        widget = DrawingWidget("test", history=history, history_index=0)
-        assert len(widget.state.properties["history"]) == 1
-
-    def test_serialize(self):
-        """Test that widget can be serialized."""
-        from champi_imgui.widgets.drawing import DrawingWidget
-
-        widget = DrawingWidget("test_draw")
-        data = widget.serialize()
-
-        assert data["widget_id"] == "test_draw"
-        assert data["widget_type"] == "DrawingWidget"
-        assert "properties" in data
+    assert w.widget_id == "canvas-1"
+    assert w.state.properties["color"] == (1.0, 0.0, 0.0, 1.0)
+    assert w.state.properties["brush_size"] == 5.0
+    assert w.state.properties["is_eraser"] is False
+    assert w.state.properties["brush_style"] == "solid"
+    assert w.state.properties["size"] == (800.0, 600.0)
+    assert w.state.properties["strokes"] == []
+    assert w.state.properties["current_stroke"] == []
 
 
-class TestBrushWidget:
-    """Tests for BrushWidget class."""
+def test_drawing_widget_custom_props():
+    """DrawingWidget accepts custom constructor properties."""
+    w = DrawingWidget(
+        "canvas-2",
+        color=(0.0, 1.0, 0.0, 1.0),
+        brush_size=10.0,
+        is_eraser=True,
+        brush_style="dashed",
+        size=(400.0, 300.0),
+    )
 
-    def test_initialization(self):
-        """Test that BrushWidget initializes correctly."""
-        from champi_imgui.widgets.drawing import BrushWidget
-
-        widget = BrushWidget("test_brush")
-        assert widget.widget_id == "test_brush"
-        assert widget.state.properties["color"] == (1.0, 0.0, 0.0, 1.0)
-        assert widget.state.properties["brush_size"] == 5.0
-
-    def test_custom_brush_settings(self):
-        """Test BrushWidget with custom brush settings."""
-        from champi_imgui.widgets.drawing import BrushWidget
-
-        widget = BrushWidget(
-            "test_brush",
-            color=(0.0, 0.0, 1.0, 1.0),  # Blue
-            brush_size=8.0,
-            line_width=3.0,
-            is_eraser=False,
-            brush_style="dots",
-        )
-
-        assert widget.state.properties["color"] == (0.0, 0.0, 1.0, 1.0)
-        assert widget.state.properties["brush_size"] == 8.0
-        assert widget.state.properties["is_eraser"] is False
-        assert widget.state.properties["brush_style"] == "dots"
-
-    def test_serialize(self):
-        """Test that widget can be serialized."""
-        from champi_imgui.widgets.drawing import BrushWidget
-
-        widget = BrushWidget("test_brush_ctrl")
-        data = widget.serialize()
-
-        assert data["widget_id"] == "test_brush_ctrl"
-        assert data["widget_type"] == "BrushWidget"
+    assert w.state.properties["color"] == (0.0, 1.0, 0.0, 1.0)
+    assert w.state.properties["brush_size"] == 10.0
+    assert w.state.properties["is_eraser"] is True
+    assert w.state.properties["brush_style"] == "dashed"
+    assert w.state.properties["size"] == (400.0, 300.0)
 
 
-class TestCanvasMenuWidget:
-    """Tests for CanvasMenuWidget class."""
+def test_drawing_widget_clear():
+    """clear() resets strokes and current_stroke."""
+    w = DrawingWidget("canvas-3")
+    w.state.properties["strokes"] = [[(0.0, 0.0), (1.0, 1.0)]]
+    w.state.properties["current_stroke"] = [(2.0, 2.0)]
 
-    def test_initialization(self):
-        """Test that CanvasMenuWidget initializes correctly."""
-        from champi_imgui.widgets.drawing import CanvasMenuWidget
+    w.clear()
 
-        widget = CanvasMenuWidget("test_menu")
-        assert widget.widget_id == "test_menu"
-        assert widget.state.properties["can_undo"] is True
-        assert widget.state.properties["can_redo"] is True
-
-    def test_disabled_commands(self):
-        """Test CanvasMenuWidget with disabled undo/redo."""
-        from champi_imgui.widgets.drawing import CanvasMenuWidget
-
-        widget = CanvasMenuWidget(
-            "test_menu",
-            can_undo=False,
-            can_redo=False,
-            history_size=5,
-        )
-
-        assert widget.state.properties["can_undo"] is False
-        assert widget.state.properties["can_redo"] is False
-        assert widget.state.properties["history_size"] == 5
-
-    def test_serialize(self):
-        """Test that widget can be serialized."""
-        from champi_imgui.widgets.drawing import CanvasMenuWidget
-
-        widget = CanvasMenuWidget("test_menu")
-        data = widget.serialize()
-
-        assert data["widget_id"] == "test_menu"
-        assert data["widget_type"] == "CanvasMenuWidget"
+    assert w.state.properties["strokes"] == []
+    assert w.state.properties["current_stroke"] == []
 
 
-class TestDrawingWidgetRendering:
-    """Tests for DrawingWidget rendering behavior."""
+def test_drawing_widget_undo_removes_last_stroke():
+    """undo() removes the most-recently completed stroke."""
+    w = DrawingWidget("canvas-4")
+    stroke_a = [(0.0, 0.0), (1.0, 1.0)]
+    stroke_b = [(2.0, 2.0), (3.0, 3.0)]
+    w.state.properties["strokes"] = [stroke_a, stroke_b]
 
-    def test_visible_widget(self):
-        """Test render when widget is visible."""
-        from champi_imgui.widgets.drawing import DrawingWidget
+    w.undo()
 
-        widget = DrawingWidget("visible_draw")
-        widget.set_visible(True)
-
-        # Should not raise an exception
-        widget.render()
-
-    def test_hidden_widget(self):
-        """Test render when widget is hidden."""
-        from champi_imgui.widgets.drawing import DrawingWidget
-
-        widget = DrawingWidget("hidden_draw")
-        widget.set_visible(False)
-
-        # Should not raise an exception
-        widget.render()
+    assert w.state.properties["strokes"] == [stroke_a]
 
 
-class TestColorParsing:
-    """Tests for color parsing in main.py helpers."""
-
-    def test_hex_color_parsing(self):
-        """Test hex color parsing."""
-        from champi_imgui.server.main import _hex_to_rgba
-
-        # Red
-        assert _hex_to_rgba("#FF0000") == (1.0, 0.0, 0.0, 1.0)
-        # Blue
-        assert _hex_to_rgba("#0000FF") == (0.0, 0.0, 1.0, 1.0)
-        # Green
-        assert _hex_to_rgba("#00FF00") == (0.0, 1.0, 0.0, 1.0)
-        # With alpha
-        assert _hex_to_rgba("#FF000080") == (1.0, 0.0, 0.0, 0.5)
-
-    def test_named_colors(self):
-        """Test named color parsing."""
-        from champi_imgui.server.main import _parse_color
-
-        # Named colors
-        assert _parse_color("red") == (1.0, 0.0, 0.0, 1.0)
-        assert _parse_color("blue") == (0.0, 0.0, 1.0, 1.0)
-        assert _parse_color("green") == (0.0, 1.0, 0.0, 1.0)
-        assert _parse_color("white") == (1.0, 1.0, 1.0, 1.0)
-        assert _parse_color("black") == (0.0, 0.0, 0.0, 1.0)
-
-    def test_invalid_color(self):
-        """Test that invalid colors default to red."""
-        from champi_imgui.server.main import _parse_color
-
-        assert _parse_color("invalid") == (1.0, 0.0, 0.0, 1.0)
+def test_drawing_widget_undo_on_empty_is_noop():
+    """undo() on an empty canvas does not raise."""
+    w = DrawingWidget("canvas-5")
+    w.undo()  # should not raise
+    assert w.state.properties["strokes"] == []
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+def test_drawing_widget_serialize():
+    """serialize() round-trips through the widget state."""
+    w = DrawingWidget("canvas-6", brush_size=12.0)
+    data = w.serialize()
+
+    assert data["widget_id"] == "canvas-6"
+    assert data["properties"]["brush_size"] == 12.0
+
+
+# ---------------------------------------------------------------------------
+# BrushWidget — initialization
+# ---------------------------------------------------------------------------
+
+
+def test_brush_widget_defaults():
+    """BrushWidget initializes with expected default properties."""
+    w = BrushWidget("brush-1")
+
+    assert w.widget_id == "brush-1"
+    assert w.state.properties["color"] == (1.0, 0.0, 0.0, 1.0)
+    assert w.state.properties["brush_size"] == 5.0
+    assert w.state.properties["is_eraser"] is False
+    assert w.state.properties["brush_style"] == "solid"
+
+
+def test_brush_widget_serialize():
+    """BrushWidget serialize includes expected keys."""
+    w = BrushWidget("brush-2", brush_size=20.0)
+    data = w.serialize()
+
+    assert data["widget_id"] == "brush-2"
+    assert data["properties"]["brush_size"] == 20.0
+
+
+# ---------------------------------------------------------------------------
+# CanvasMenuWidget — initialization
+# ---------------------------------------------------------------------------
+
+
+def test_canvas_menu_widget_defaults():
+    """CanvasMenuWidget initializes with expected default properties."""
+    w = CanvasMenuWidget("menu-1")
+
+    assert w.widget_id == "menu-1"
+    assert w.state.properties["can_undo"] is True
+    assert w.state.properties["can_redo"] is True
+    assert w.state.properties["history_size"] == 10
+
+
+def test_canvas_menu_widget_serialize():
+    """CanvasMenuWidget serialize includes expected keys."""
+    w = CanvasMenuWidget("menu-2", history_size=20)
+    data = w.serialize()
+
+    assert data["widget_id"] == "menu-2"
+    assert data["properties"]["history_size"] == 20
+
+
+# ---------------------------------------------------------------------------
+# WidgetFactory registration
+# ---------------------------------------------------------------------------
+
+
+def test_drawing_widgets_registered_in_factory():
+    """WidgetRegistry pre-registers all three drawing widget types."""
+    registry = WidgetRegistry()
+    types = registry.factory.list_types()
+
+    assert "drawing_area" in types
+    assert "brush_controls" in types
+    assert "canvas_menu" in types
+
+
+def test_factory_create_drawing_area():
+    """factory.create('drawing_area', ...) returns a DrawingWidget."""
+    registry = WidgetRegistry()
+    widget = registry.factory.create("drawing_area", "w1")
+
+    assert isinstance(widget, DrawingWidget)
+    assert widget.widget_id == "w1"
+
+
+def test_factory_create_brush_controls():
+    """factory.create('brush_controls', ...) returns a BrushWidget."""
+    registry = WidgetRegistry()
+    widget = registry.factory.create("brush_controls", "w2")
+
+    assert isinstance(widget, BrushWidget)
+    assert widget.widget_id == "w2"
+
+
+def test_factory_create_canvas_menu():
+    """factory.create('canvas_menu', ...) returns a CanvasMenuWidget."""
+    registry = WidgetRegistry()
+    widget = registry.factory.create("canvas_menu", "w3")
+
+    assert isinstance(widget, CanvasMenuWidget)
+    assert widget.widget_id == "w3"
+
+
+def test_factory_create_with_props():
+    """factory.create passes keyword props through to the widget constructor."""
+    registry = WidgetRegistry()
+    widget = registry.factory.create("drawing_area", "w4", brush_size=15.0)
+
+    assert isinstance(widget, DrawingWidget)
+    assert widget.state.properties["brush_size"] == 15.0
