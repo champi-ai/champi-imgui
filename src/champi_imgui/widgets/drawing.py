@@ -101,9 +101,7 @@ class DrawingWidget(Widget):
         self._restore_canvas(history, history_index, draw_color, width, height)
 
         # Handle mouse input for drawing
-        self._handle_mouse_input(
-            width, height, draw_color, brush_size, brush_style
-        )
+        self._handle_mouse_input(width, height, draw_color, brush_size, brush_style)
 
         # Update history with current state
         self._update_history(draw_color)
@@ -238,9 +236,7 @@ class DrawingWidget(Widget):
                     start_pos = imgui.ImVec2(last_mouse_x, last_mouse_y)
                     end_pos = imgui.ImVec2(canvas_x, canvas_y)
 
-                    self._draw_line(
-                        start_pos, end_pos, color, brush_size, brush_style
-                    )
+                    self._draw_line(start_pos, end_pos, color, brush_size, brush_style)
 
                     # Update last position
                     self.state.properties["last_mouse_x"] = canvas_x
@@ -384,9 +380,7 @@ class BrushWidget(Widget):
         ]
         style_names, style_values = zip(*style_options, strict=True)
         current_style_idx = style_names.index(brush_style)
-        selected_style = imgui.combo(
-            "##brush_style", current_style_idx, style_names, 0
-        )
+        selected_style = imgui.combo("##brush_style", current_style_idx, style_names, 0)
         if selected_style != current_style_idx:
             brush_style = style_values[selected_style]
             self.state.properties["brush_style"] = brush_style

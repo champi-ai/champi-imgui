@@ -3145,7 +3145,7 @@ def add_drawing_area(
     """
     try:
         # Drawing widget is imported locally in add_drawing_area() to avoid unused import warning
-# The widget is available via: from champi_imgui.widgets.drawing import DrawingWidget
+        # The widget is available via: from champi_imgui.widgets.drawing import DrawingWidget
 
         # Parse hex color
         if color.startswith("#"):
