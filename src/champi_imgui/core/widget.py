@@ -203,6 +203,19 @@ class WidgetRegistry:
         """Initialize registry with empty widget collection."""
         self._widgets: dict[str, Widget] = {}
         self._factory = WidgetFactory()
+        self._register_drawing_widgets()
+
+    def _register_drawing_widgets(self) -> None:
+        """Register built-in drawing widget types with the factory."""
+        from champi_imgui.widgets.drawing import (
+            BrushWidget,
+            CanvasMenuWidget,
+            DrawingWidget,
+        )
+
+        self._factory.register("drawing_area", DrawingWidget)
+        self._factory.register("brush_controls", BrushWidget)
+        self._factory.register("canvas_menu", CanvasMenuWidget)
 
     @property
     def factory(self) -> WidgetFactory:
