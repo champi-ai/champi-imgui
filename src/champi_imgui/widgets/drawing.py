@@ -49,6 +49,7 @@ class DrawingWidget(Widget):
         props["size"] = size
         props["strokes"] = []
         props["current_stroke"] = []
+        props["redo_stack"] = []
         super().__init__(widget_id, **props)
 
     def render(self) -> None:  # pragma: no cover
@@ -129,11 +130,13 @@ class DrawingWidget(Widget):
                 strokes.append(list(current_stroke))
                 self.state.properties["strokes"] = strokes
                 self.state.properties["current_stroke"] = []
+                self.state.properties["redo_stack"] = []
         elif imgui.is_mouse_released(0) and current_stroke:
             # Mouse released outside canvas — commit the in-progress stroke
             strokes.append(list(current_stroke))
             self.state.properties["strokes"] = strokes
             self.state.properties["current_stroke"] = []
+            self.state.properties["redo_stack"] = []
 
     def _draw_stroke(  # pragma: no cover
         self,
@@ -174,19 +177,47 @@ class DrawingWidget(Widget):
             for i in range(0, len(vec2_points), 3):
                 draw_list.add_circle_filled(vec2_points[i], brush_size * 0.5, color_u32)
 
+    @property
+    def can_undo(self) -> bool:
+        """Return True if there are strokes available to undo."""
+        return bool(self.state.properties.get("strokes", []))
+
+    @property
+    def can_redo(self) -> bool:
+        """Return True if there are undone strokes available to redo."""
+        return bool(self.state.properties.get("redo_stack", []))
+
     def clear(self) -> None:
-        """Clear all strokes from the canvas."""
+        """Clear all strokes and redo history from the canvas."""
         self.state.properties["strokes"] = []
         self.state.properties["current_stroke"] = []
+        self.state.properties["redo_stack"] = []
 
     def undo(self) -> None:
-        """Remove the last completed stroke."""
+        """Remove the last completed stroke and push it onto the redo stack."""
         strokes: list[list[tuple[float, float]]] = self.state.properties.get(
             "strokes", []
         )
         if strokes:
-            strokes.pop()
+            redo_stack: list[list[tuple[float, float]]] = self.state.properties.get(
+                "redo_stack", []
+            )
+            redo_stack.append(strokes.pop())
             self.state.properties["strokes"] = strokes
+            self.state.properties["redo_stack"] = redo_stack
+
+    def redo(self) -> None:
+        """Restore the last undone stroke from the redo stack."""
+        redo_stack: list[list[tuple[float, float]]] = self.state.properties.get(
+            "redo_stack", []
+        )
+        if redo_stack:
+            strokes: list[list[tuple[float, float]]] = self.state.properties.get(
+                "strokes", []
+            )
+            strokes.append(redo_stack.pop())
+            self.state.properties["strokes"] = strokes
+            self.state.properties["redo_stack"] = redo_stack
 
 
 class BrushWidget(Widget):
