@@ -46,15 +46,17 @@ def test_drawing_widget_custom_props():
 
 
 def test_drawing_widget_clear():
-    """clear() resets strokes and current_stroke."""
+    """clear() resets strokes, current_stroke, and redo_stack."""
     w = DrawingWidget("canvas-3")
     w.state.properties["strokes"] = [[(0.0, 0.0), (1.0, 1.0)]]
     w.state.properties["current_stroke"] = [(2.0, 2.0)]
+    w.state.properties["redo_stack"] = [[(3.0, 3.0), (4.0, 4.0)]]
 
     w.clear()
 
     assert w.state.properties["strokes"] == []
     assert w.state.properties["current_stroke"] == []
+    assert w.state.properties["redo_stack"] == []
 
 
 def test_drawing_widget_undo_removes_last_stroke():
@@ -74,6 +76,148 @@ def test_drawing_widget_undo_on_empty_is_noop():
     w = DrawingWidget("canvas-5")
     w.undo()  # should not raise
     assert w.state.properties["strokes"] == []
+
+
+def test_drawing_widget_add_shape_rect():
+    """add_shape() appends a rect shape dict to state.properties['shapes']."""
+    w = DrawingWidget("canvas-shape-1")
+    w.add_shape("rect", x1=10.0, y1=20.0, x2=110.0, y2=120.0)
+
+    shapes = w.state.properties["shapes"]
+    assert len(shapes) == 1
+    assert shapes[0]["type"] == "rect"
+    assert shapes[0]["x1"] == 10.0
+    assert shapes[0]["x2"] == 110.0
+
+
+def test_drawing_widget_add_shape_circle():
+    """add_shape() appends a circle shape dict with cx, cy, radius."""
+    w = DrawingWidget("canvas-shape-2")
+    w.add_shape("circle", cx=50.0, cy=50.0, radius=30.0)
+
+    shapes = w.state.properties["shapes"]
+    assert len(shapes) == 1
+    assert shapes[0]["type"] == "circle"
+    assert shapes[0]["radius"] == 30.0
+
+
+def test_drawing_widget_add_shape_color_default():
+    """add_shape() uses default blue color when none supplied."""
+    w = DrawingWidget("canvas-shape-3")
+    w.add_shape("line", x1=0.0, y1=0.0, x2=10.0, y2=10.0)
+
+    assert w.state.properties["shapes"][0]["color"] == (0.0, 0.5, 1.0, 1.0)
+
+
+def test_drawing_widget_clear_shapes():
+    """clear_shapes() removes all shapes without touching strokes."""
+    w = DrawingWidget("canvas-shape-4")
+    w.add_shape("line", x1=0.0, y1=0.0, x2=5.0, y2=5.0)
+    w.state.properties["strokes"] = [[(0.0, 0.0), (1.0, 1.0)]]
+
+    w.clear_shapes()
+
+    assert w.state.properties["shapes"] == []
+    assert len(w.state.properties["strokes"]) == 1
+
+
+def test_drawing_widget_clear_includes_shapes_and_annotations():
+    """clear() removes strokes, shapes, and annotations."""
+    w = DrawingWidget("canvas-shape-5")
+    w.add_shape("rect", x1=0.0, y1=0.0, x2=10.0, y2=10.0)
+    w.add_annotation(5.0, 5.0, "hello")
+    w.state.properties["strokes"] = [[(0.0, 0.0), (1.0, 1.0)]]
+
+    w.clear()
+
+    assert w.state.properties["shapes"] == []
+    assert w.state.properties["annotations"] == []
+    assert w.state.properties["strokes"] == []
+
+
+def test_drawing_widget_add_annotation():
+    """add_annotation() appends a text annotation dict."""
+    w = DrawingWidget("canvas-ann-1")
+    w.add_annotation(10.0, 20.0, "label", color=(1.0, 0.0, 0.0, 1.0), font_size=14.0)
+
+    annotations = w.state.properties["annotations"]
+    assert len(annotations) == 1
+    ann = annotations[0]
+    assert ann["type"] == "text"
+    assert ann["x"] == 10.0
+    assert ann["y"] == 20.0
+    assert ann["text"] == "label"
+    assert ann["color"] == (1.0, 0.0, 0.0, 1.0)
+    assert ann["font_size"] == 14.0
+
+
+def test_undo_pushes_to_redo_stack():
+    """undo() moves the last stroke onto the redo stack."""
+    w = DrawingWidget("canvas-undo-redo-1")
+    stroke_a = [(0.0, 0.0), (1.0, 1.0)]
+    stroke_b = [(2.0, 2.0), (3.0, 3.0)]
+    w.state.properties["strokes"] = [stroke_a, stroke_b]
+
+    w.undo()
+
+    assert w.state.properties["strokes"] == [stroke_a]
+    assert w.state.properties["redo_stack"] == [stroke_b]
+
+
+def test_redo_restores_stroke():
+    """redo() moves the last redo entry back into strokes."""
+    w = DrawingWidget("canvas-undo-redo-2")
+    stroke_a = [(0.0, 0.0), (1.0, 1.0)]
+    stroke_b = [(2.0, 2.0), (3.0, 3.0)]
+    w.state.properties["strokes"] = [stroke_a]
+    w.state.properties["redo_stack"] = [stroke_b]
+
+    w.redo()
+
+    assert w.state.properties["strokes"] == [stroke_a, stroke_b]
+    assert w.state.properties["redo_stack"] == []
+
+
+def test_redo_on_empty_is_noop():
+    """redo() with no redo history does not raise."""
+    w = DrawingWidget("canvas-undo-redo-3")
+    w.redo()  # should not raise
+    assert w.state.properties["strokes"] == []
+
+
+def test_clear_resets_redo_stack():
+    """clear() wipes the redo stack in addition to strokes."""
+    w = DrawingWidget("canvas-undo-redo-4")
+    w.state.properties["redo_stack"] = [[(5.0, 5.0), (6.0, 6.0)]]
+    w.clear()
+    assert w.state.properties["redo_stack"] == []
+
+
+def test_can_undo_false_when_empty():
+    """can_undo is False when there are no strokes."""
+    w = DrawingWidget("canvas-can-undo-1")
+    assert w.can_undo is False
+
+
+def test_can_undo_true_with_strokes():
+    """can_undo is True when strokes exist."""
+    w = DrawingWidget("canvas-can-undo-2")
+    w.state.properties["strokes"] = [[(0.0, 0.0), (1.0, 1.0)]]
+    assert w.can_undo is True
+
+
+def test_can_redo_false_when_empty():
+    """can_redo is False when the redo stack is empty."""
+    w = DrawingWidget("canvas-can-redo-1")
+    assert w.can_redo is False
+
+
+def test_can_redo_true_after_undo():
+    """can_redo is True after an undo operation."""
+    w = DrawingWidget("canvas-can-redo-2")
+    w.state.properties["strokes"] = [[(0.0, 0.0), (1.0, 1.0)]]
+    w.undo()
+    assert w.can_redo is True
 
 
 def test_drawing_widget_serialize():
@@ -132,6 +276,21 @@ def test_canvas_menu_widget_serialize():
 
     assert data["widget_id"] == "menu-2"
     assert data["properties"]["history_size"] == 20
+
+
+def test_canvas_menu_drawing_widget_id():
+    """CanvasMenuWidget stores drawing_widget_id in properties."""
+    w = CanvasMenuWidget("menu-3", drawing_widget_id="canvas-1")
+
+    assert w.state.properties["drawing_widget_id"] == "canvas-1"
+
+
+def test_canvas_menu_serialize_includes_drawing_widget_id():
+    """serialize() includes drawing_widget_id."""
+    w = CanvasMenuWidget("menu-4", drawing_widget_id="canvas-99")
+    data = w.serialize()
+
+    assert data["properties"]["drawing_widget_id"] == "canvas-99"
 
 
 # ---------------------------------------------------------------------------

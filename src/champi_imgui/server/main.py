@@ -3116,11 +3116,10 @@ def add_drawing_area(
     widget_id: str,
     color: str = "#FF0000",
     brush_size: float = 5.0,
-    line_width: float = 1.0,
-    is_clear: bool = False,
     is_eraser: bool = False,
     brush_style: str = "solid",
-    history_size: int = 10,
+    width: float = 800.0,
+    height: float = 600.0,
 ) -> dict[str, Any]:
     """Add a drawing area to the canvas.
 
@@ -3132,20 +3131,15 @@ def add_drawing_area(
         widget_id: Unique identifier for the widget
         color: Brush color as hex string (e.g., "#FF0000" for red)
         brush_size: Brush radius in pixels
-        line_width: Line width for text/annotation
-        is_clear: Whether canvas should be cleared on first render
         is_eraser: Whether brush starts in eraser mode
         brush_style: "solid", "dashed", or "dots"
-        history_size: Maximum undo history size
+        width: Canvas width in pixels
+        height: Canvas height in pixels
 
     Returns:
         Success status and serialized widget data
     """
     try:
-        # Drawing widget is imported locally in add_drawing_area() to avoid unused import warning
-        # The widget is available via: from champi_imgui.widgets.drawing import DrawingWidget
-
-        # Parse hex color
         if color.startswith("#"):
             color_tuple = _hex_to_rgba(color[1:].upper())
         else:
@@ -3155,11 +3149,9 @@ def add_drawing_area(
             widget_id,
             color=color_tuple,
             brush_size=brush_size,
-            line_width=line_width,
-            is_clear=is_clear,
             is_eraser=is_eraser,
             brush_style=brush_style,
-            history_size=history_size,
+            size=(width, height),
         )
         return _create_widget_in_canvas(canvas_id, widget)
     except Exception as e:
@@ -3223,7 +3215,6 @@ def add_canvas_menu(
     can_undo: bool = True,
     can_redo: bool = True,
     history_size: int = 10,
-    is_eraser: bool = False,
 ) -> dict[str, Any]:
     """Add a canvas context menu to the canvas.
 
@@ -3236,7 +3227,6 @@ def add_canvas_menu(
         can_undo: Whether undo is available
         can_redo: Whether redo is available
         history_size: Maximum history size for commands
-        is_eraser: Whether eraser mode is active
 
     Returns:
         Success status and serialized widget data
@@ -3249,11 +3239,230 @@ def add_canvas_menu(
             can_undo=can_undo,
             can_redo=can_redo,
             history_size=history_size,
-            is_eraser=is_eraser,
         )
         return _create_widget_in_canvas(canvas_id, widget)
     except Exception as e:
         logger.error(f"Error adding canvas menu '{widget_id}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def drawing_clear(canvas_id: str, widget_id: str) -> dict[str, Any]:
+    """Clear all strokes, shapes, and annotations from a drawing widget.
+
+    Args:
+        canvas_id: Target canvas identifier
+        widget_id: DrawingWidget identifier
+
+    Returns:
+        Success status and widget identifier
+    """
+    try:
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if not canvas:
+            return {"success": False, "error": f"Canvas {canvas_id} not found"}
+        widget = canvas.widget_registry.get(widget_id)
+        if not widget:
+            return {"success": False, "error": f"Widget {widget_id} not found"}
+        from champi_imgui.widgets.drawing import DrawingWidget
+
+        if not isinstance(widget, DrawingWidget):
+            return {
+                "success": False,
+                "error": f"Widget {widget_id} is not a DrawingWidget",
+            }
+        widget.clear()
+        return {"success": True, "data": {"widget_id": widget_id}}
+    except Exception as e:
+        logger.error(f"Error clearing drawing widget '{widget_id}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def drawing_undo(canvas_id: str, widget_id: str) -> dict[str, Any]:
+    """Undo the last stroke on a drawing widget.
+
+    Args:
+        canvas_id: Target canvas identifier
+        widget_id: DrawingWidget identifier
+
+    Returns:
+        Success status and widget identifier
+    """
+    try:
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if not canvas:
+            return {"success": False, "error": f"Canvas {canvas_id} not found"}
+        widget = canvas.widget_registry.get(widget_id)
+        if not widget:
+            return {"success": False, "error": f"Widget {widget_id} not found"}
+        from champi_imgui.widgets.drawing import DrawingWidget
+
+        if not isinstance(widget, DrawingWidget):
+            return {
+                "success": False,
+                "error": f"Widget {widget_id} is not a DrawingWidget",
+            }
+        widget.undo()
+        return {"success": True, "data": {"widget_id": widget_id}}
+    except Exception as e:
+        logger.error(f"Error undoing on drawing widget '{widget_id}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def drawing_redo(canvas_id: str, widget_id: str) -> dict[str, Any]:
+    """Redo the last undone stroke on a drawing widget.
+
+    Args:
+        canvas_id: Target canvas identifier
+        widget_id: DrawingWidget identifier
+
+    Returns:
+        Success status and widget identifier
+    """
+    try:
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if not canvas:
+            return {"success": False, "error": f"Canvas {canvas_id} not found"}
+        widget = canvas.widget_registry.get(widget_id)
+        if not widget:
+            return {"success": False, "error": f"Widget {widget_id} not found"}
+        from champi_imgui.widgets.drawing import DrawingWidget
+
+        if not isinstance(widget, DrawingWidget):
+            return {
+                "success": False,
+                "error": f"Widget {widget_id} is not a DrawingWidget",
+            }
+        widget.redo()
+        return {"success": True, "data": {"widget_id": widget_id}}
+    except Exception as e:
+        logger.error(f"Error redoing on drawing widget '{widget_id}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def drawing_add_shape(
+    canvas_id: str,
+    widget_id: str,
+    shape_type: str,
+    x1: float = 0.0,
+    y1: float = 0.0,
+    x2: float = 100.0,
+    y2: float = 100.0,
+    cx: float = 0.0,
+    cy: float = 0.0,
+    radius: float = 50.0,
+    color: list[float] | None = None,
+    thickness: float = 2.0,
+) -> dict[str, Any]:
+    """Add a shape to a drawing widget.
+
+    Args:
+        canvas_id: Target canvas identifier
+        widget_id: DrawingWidget identifier
+        shape_type: One of "rect", "circle", "arrow", "line"
+        x1: Start x for rect/line/arrow (canvas-relative pixels)
+        y1: Start y for rect/line/arrow (canvas-relative pixels)
+        x2: End x for rect/line/arrow (canvas-relative pixels)
+        y2: End y for rect/line/arrow (canvas-relative pixels)
+        cx: Center x for circle (canvas-relative pixels)
+        cy: Center y for circle (canvas-relative pixels)
+        radius: Radius for circle in pixels
+        color: RGBA color as [r, g, b, a] with values 0.0-1.0 (default blue)
+        thickness: Line thickness in pixels
+
+    Returns:
+        Success status and widget identifier
+    """
+    try:
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if not canvas:
+            return {"success": False, "error": f"Canvas {canvas_id} not found"}
+        widget = canvas.widget_registry.get(widget_id)
+        if not widget:
+            return {"success": False, "error": f"Widget {widget_id} not found"}
+        from champi_imgui.widgets.drawing import DrawingWidget
+
+        if not isinstance(widget, DrawingWidget):
+            return {
+                "success": False,
+                "error": f"Widget {widget_id} is not a DrawingWidget",
+            }
+        color_tuple: tuple[float, float, float, float] = (
+            tuple(color) if color else (0.0, 0.5, 1.0, 1.0)  # type: ignore[assignment]
+        )
+        if shape_type == "circle":
+            widget.add_shape(
+                shape_type,
+                color=color_tuple,
+                thickness=thickness,
+                cx=cx,
+                cy=cy,
+                radius=radius,
+            )
+        else:
+            widget.add_shape(
+                shape_type,
+                color=color_tuple,
+                thickness=thickness,
+                x1=x1,
+                y1=y1,
+                x2=x2,
+                y2=y2,
+            )
+        return {"success": True, "data": {"widget_id": widget_id}}
+    except Exception as e:
+        logger.error(f"Error adding shape to drawing widget '{widget_id}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def drawing_add_text(
+    canvas_id: str,
+    widget_id: str,
+    x: float,
+    y: float,
+    text: str,
+    color: list[float] | None = None,
+    font_size: float = 13.0,
+) -> dict[str, Any]:
+    """Add a text annotation to a drawing widget.
+
+    Args:
+        canvas_id: Target canvas identifier
+        widget_id: DrawingWidget identifier
+        x: Canvas-relative x position in pixels
+        y: Canvas-relative y position in pixels
+        text: Text content to display
+        color: RGBA color as [r, g, b, a] with values 0.0-1.0 (default white)
+        font_size: Font size in pixels
+
+    Returns:
+        Success status and widget identifier
+    """
+    try:
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if not canvas:
+            return {"success": False, "error": f"Canvas {canvas_id} not found"}
+        widget = canvas.widget_registry.get(widget_id)
+        if not widget:
+            return {"success": False, "error": f"Widget {widget_id} not found"}
+        from champi_imgui.widgets.drawing import DrawingWidget
+
+        if not isinstance(widget, DrawingWidget):
+            return {
+                "success": False,
+                "error": f"Widget {widget_id} is not a DrawingWidget",
+            }
+        color_tuple: tuple[float, float, float, float] = (
+            tuple(color) if color else (1.0, 1.0, 1.0, 1.0)  # type: ignore[assignment]
+        )
+        widget.add_annotation(x, y, text, color_tuple, font_size)
+        return {"success": True, "data": {"widget_id": widget_id}}
+    except Exception as e:
+        logger.error(f"Error adding text to drawing widget '{widget_id}': {e}")
         return {"success": False, "error": str(e)}
 
 
