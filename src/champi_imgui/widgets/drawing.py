@@ -6,6 +6,7 @@ This module provides widgets for freehand drawing and whiteboard interaction:
 - CanvasMenuWidget: Context menu for canvas actions
 """
 
+import math
 from typing import Any
 
 from imgui_bundle import imgui
@@ -49,6 +50,9 @@ class DrawingWidget(Widget):
         props["size"] = size
         props["strokes"] = []
         props["current_stroke"] = []
+        props["shapes"] = []
+        props["annotations"] = []
+        props["redo_stack"] = []
         super().__init__(widget_id, **props)
 
     def render(self) -> None:  # pragma: no cover
@@ -115,6 +119,13 @@ class DrawingWidget(Widget):
                 canvas_min,
             )
 
+        # Draw LLM-added shapes
+        for shape in self.state.properties.get("shapes", []):
+            self._draw_shape(draw_list, shape, canvas_min)
+
+        # Draw text annotations
+        self._draw_annotations(draw_list, canvas_min)
+
         # Handle mouse input — must come after invisible_button for is_item_hovered
         if imgui.is_item_hovered():
             imgui.set_mouse_cursor(imgui.MouseCursor_.hand)
@@ -129,11 +140,13 @@ class DrawingWidget(Widget):
                 strokes.append(list(current_stroke))
                 self.state.properties["strokes"] = strokes
                 self.state.properties["current_stroke"] = []
+                self.state.properties["redo_stack"] = []
         elif imgui.is_mouse_released(0) and current_stroke:
             # Mouse released outside canvas — commit the in-progress stroke
             strokes.append(list(current_stroke))
             self.state.properties["strokes"] = strokes
             self.state.properties["current_stroke"] = []
+            self.state.properties["redo_stack"] = []
 
     def _draw_stroke(  # pragma: no cover
         self,
@@ -174,19 +187,193 @@ class DrawingWidget(Widget):
             for i in range(0, len(vec2_points), 3):
                 draw_list.add_circle_filled(vec2_points[i], brush_size * 0.5, color_u32)
 
+    def _draw_shape(  # pragma: no cover
+        self,
+        draw_list: imgui.ImDrawList,
+        shape: dict[str, Any],
+        canvas_min: imgui.ImVec2,
+    ) -> None:
+        """Draw a single LLM-added shape.
+
+        Args:
+            draw_list: ImGui window draw list
+            shape: Shape dict with type, color, thickness, and coordinates
+            canvas_min: Canvas origin in screen coordinates
+        """
+        color_u32 = imgui.color_convert_float4_to_u32(imgui.ImVec4(*shape["color"]))
+        t = shape.get("thickness", 2.0)
+        ox, oy = canvas_min.x, canvas_min.y
+        stype = shape["type"]
+
+        if stype == "rect":
+            draw_list.add_rect(
+                imgui.ImVec2(ox + shape["x1"], oy + shape["y1"]),
+                imgui.ImVec2(ox + shape["x2"], oy + shape["y2"]),
+                color_u32,
+                0.0,
+                0,
+                t,
+            )
+        elif stype == "circle":
+            draw_list.add_circle(
+                imgui.ImVec2(ox + shape["cx"], oy + shape["cy"]),
+                shape["radius"],
+                color_u32,
+                0,
+                t,
+            )
+        elif stype in ("line", "arrow"):
+            draw_list.add_line(
+                imgui.ImVec2(ox + shape["x1"], oy + shape["y1"]),
+                imgui.ImVec2(ox + shape["x2"], oy + shape["y2"]),
+                color_u32,
+                t,
+            )
+            if stype == "arrow":
+                dx = shape["x2"] - shape["x1"]
+                dy = shape["y2"] - shape["y1"]
+                length = math.hypot(dx, dy)
+                if length > 0:
+                    ux, uy = dx / length, dy / length
+                    head = 12.0
+                    p = imgui.ImVec2(ox + shape["x2"], oy + shape["y2"])
+                    p1 = imgui.ImVec2(
+                        p.x - ux * head + uy * head * 0.4,
+                        p.y - uy * head - ux * head * 0.4,
+                    )
+                    p2 = imgui.ImVec2(
+                        p.x - ux * head - uy * head * 0.4,
+                        p.y - uy * head + ux * head * 0.4,
+                    )
+                    draw_list.add_triangle_filled(p, p1, p2, color_u32)
+
+    def _draw_annotations(  # pragma: no cover
+        self,
+        draw_list: imgui.ImDrawList,
+        canvas_min: imgui.ImVec2,
+    ) -> None:
+        """Draw all text annotations on the canvas.
+
+        Args:
+            draw_list: ImGui window draw list
+            canvas_min: Canvas origin in screen coordinates
+        """
+        for annotation in self.state.properties.get("annotations", []):
+            if annotation.get("type") == "text":
+                color_u32 = imgui.color_convert_float4_to_u32(
+                    imgui.ImVec4(*annotation["color"])
+                )
+                draw_list.add_text(
+                    imgui.ImVec2(
+                        canvas_min.x + annotation["x"],
+                        canvas_min.y + annotation["y"],
+                    ),
+                    color_u32,
+                    annotation["text"],
+                )
+
+    def add_shape(
+        self,
+        shape_type: str,
+        color: tuple[float, float, float, float] = (0.0, 0.5, 1.0, 1.0),
+        thickness: float = 2.0,
+        **coords: float,
+    ) -> None:
+        """Add a shape to the canvas.
+
+        Args:
+            shape_type: One of "rect", "circle", "arrow", "line"
+            color: RGBA color tuple (0.0-1.0 range)
+            thickness: Line thickness in pixels
+            **coords: Coordinate arguments. rect/arrow/line use x1, y1, x2, y2;
+                circle uses cx, cy, radius. All values are canvas-relative.
+        """
+        shape: dict[str, Any] = {
+            "type": shape_type,
+            "color": color,
+            "thickness": thickness,
+            **coords,
+        }
+        shapes: list[dict[str, Any]] = self.state.properties.get("shapes", [])
+        shapes.append(shape)
+        self.state.properties["shapes"] = shapes
+
+    def add_annotation(
+        self,
+        x: float,
+        y: float,
+        text: str,
+        color: tuple[float, float, float, float] = (1.0, 1.0, 1.0, 1.0),
+        font_size: float = 13.0,
+    ) -> None:
+        """Add a text annotation to the canvas.
+
+        Args:
+            x: Canvas-relative x position
+            y: Canvas-relative y position
+            text: Text to display
+            color: RGBA color tuple (0.0-1.0 range)
+            font_size: Font size in pixels (informational; ImGui uses current font)
+        """
+        annotation: dict[str, Any] = {
+            "type": "text",
+            "x": x,
+            "y": y,
+            "text": text,
+            "color": color,
+            "font_size": font_size,
+        }
+        annotations: list[dict[str, Any]] = self.state.properties.get("annotations", [])
+        annotations.append(annotation)
+        self.state.properties["annotations"] = annotations
+
+    def clear_shapes(self) -> None:
+        """Remove all shapes from the canvas."""
+        self.state.properties["shapes"] = []
+
     def clear(self) -> None:
-        """Clear all strokes from the canvas."""
+        """Clear all strokes, shapes, and annotations from the canvas."""
         self.state.properties["strokes"] = []
         self.state.properties["current_stroke"] = []
+        self.clear_shapes()
+        self.state.properties["annotations"] = []
+        self.state.properties["redo_stack"] = []
+
+    @property
+    def can_undo(self) -> bool:
+        """Return True if there are strokes available to undo."""
+        return bool(self.state.properties.get("strokes", []))
+
+    @property
+    def can_redo(self) -> bool:
+        """Return True if there are undone strokes available to redo."""
+        return bool(self.state.properties.get("redo_stack", []))
 
     def undo(self) -> None:
-        """Remove the last completed stroke."""
+        """Remove the last completed stroke and push it onto the redo stack."""
         strokes: list[list[tuple[float, float]]] = self.state.properties.get(
             "strokes", []
         )
         if strokes:
-            strokes.pop()
+            redo_stack: list[list[tuple[float, float]]] = self.state.properties.get(
+                "redo_stack", []
+            )
+            redo_stack.append(strokes.pop())
             self.state.properties["strokes"] = strokes
+            self.state.properties["redo_stack"] = redo_stack
+
+    def redo(self) -> None:
+        """Restore the last undone stroke from the redo stack."""
+        redo_stack: list[list[tuple[float, float]]] = self.state.properties.get(
+            "redo_stack", []
+        )
+        if redo_stack:
+            strokes: list[list[tuple[float, float]]] = self.state.properties.get(
+                "strokes", []
+            )
+            strokes.append(redo_stack.pop())
+            self.state.properties["strokes"] = strokes
+            self.state.properties["redo_stack"] = redo_stack
 
 
 class BrushWidget(Widget):
@@ -303,16 +490,15 @@ class BrushWidget(Widget):
 class CanvasMenuWidget(Widget):
     """Context menu for canvas actions.
 
-    Provides a right-click menu with commands like:
-    - Undo
-    - Redo
-    - Clear Canvas
-    - Invert Colors
+    Provides a right-click context menu tied to the current ImGui window.
+    Opens on right-click anywhere in the window and exposes undo, redo,
+    and clear actions wired to an associated DrawingWidget by ID.
     """
 
     def __init__(
         self,
         widget_id: str,
+        drawing_widget_id: str = "",
         can_undo: bool = True,
         can_redo: bool = True,
         history_size: int = 10,
@@ -322,76 +508,53 @@ class CanvasMenuWidget(Widget):
 
         Args:
             widget_id: Unique widget identifier
+            drawing_widget_id: ID of the DrawingWidget this menu controls
             can_undo: Whether undo is available
             can_redo: Whether redo is available
             history_size: Maximum history size for commands
             **props: Additional properties (visible, etc.)
         """
+        props["drawing_widget_id"] = drawing_widget_id
         props["can_undo"] = can_undo
         props["can_redo"] = can_redo
         props["history_size"] = history_size
         super().__init__(widget_id, **props)
-        self._menu_open = False
 
     def render(self) -> None:  # pragma: no cover
-        """Render the canvas menu (if open).
+        """Render the canvas context menu.
 
-        The menu is typically triggered by right-click on the
-        DrawingWidget. Use imgui.open_context_menu() to open.
+        Opens via ImGui's named popup API on right-click anywhere in the
+        current window. Menu items invoke registered callbacks.
         """
         if not self.state.visible:
             return
 
-        can_undo: bool = self.state.properties.get("can_undo", True)
-        can_redo: bool = self.state.properties.get("can_redo", True)
-        history_size: int = self.state.properties.get("history_size", 10)
-        menu_open: bool = self.state.properties.get("menu_open", False)
+        popup_id = "##canvas_menu_" + self.widget_id
 
-        if not menu_open:
-            self.state.properties["menu_open"] = False
-            return
+        if imgui.is_window_hovered() and imgui.is_mouse_clicked(
+            imgui.MouseButton_.right
+        ):
+            imgui.open_popup(popup_id)
 
-        if can_undo:
-            clicked, _ = imgui.menu_item("Undo", "", False)
-            if clicked:
-                self.trigger_callback("on_undo")
+        if imgui.begin_popup(popup_id):
+            can_undo: bool = self.state.properties.get("can_undo", True)
+            can_redo: bool = self.state.properties.get("can_redo", True)
+            history_size: int = self.state.properties.get("history_size", 10)
 
-        if can_redo:
-            clicked, _ = imgui.menu_item("Redo", "", False)
-            if clicked:
-                self.trigger_callback("on_redo")
+            if can_undo:
+                clicked, _ = imgui.menu_item("Undo", "", False)
+                if clicked:
+                    self.trigger_callback("on_undo")
 
-        if self.state.properties.get("is_eraser", False):
-            clicked, _ = imgui.menu_item("Clear (Eraser)", "", False)
-            if clicked:
-                self.state.properties["is_eraser"] = False
-                self.trigger_callback("on_clear_eraser")
-        else:
+            if can_redo:
+                clicked, _ = imgui.menu_item("Redo", "", False)
+                if clicked:
+                    self.trigger_callback("on_redo")
+
             clicked, _ = imgui.menu_item("Clear Canvas", "", False)
             if clicked:
                 self.trigger_callback("on_clear")
 
-        clicked, _ = imgui.menu_item("Invert Colors", "", False)
-        if clicked:
-            self.trigger_callback("on_invert")
-
-        clicked, _ = imgui.menu_item("Save as PNG...", "", False)
-        if clicked:
-            self.trigger_callback("on_save_png")
-
-        clicked, _ = imgui.menu_item("Export Commands...", "", False)
-        if clicked:
-            self.trigger_callback("on_export_commands")
-
-        clicked, _ = imgui.menu_item("Properties...", "", False)
-        if clicked:
-            self.trigger_callback("on_properties")
-
-        clicked, _ = imgui.menu_item("Close Menu", "", False)
-        if clicked:
-            self.state.properties["menu_open"] = False
-
-        imgui.separator()
-        imgui.text(f"History: {history_size}")
-
-        imgui.end()
+            imgui.separator()
+            imgui.text(f"History: {history_size}")
+            imgui.end_popup()
