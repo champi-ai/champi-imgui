@@ -5,11 +5,8 @@ and WidgetFactory registration. Render tests are omitted because
 calling widget.render() outside an active ImGui context segfaults.
 """
 
-import pytest
-
-from champi_imgui.core.widget import WidgetFactory, WidgetRegistry
+from champi_imgui.core.widget import WidgetRegistry
 from champi_imgui.widgets.drawing import BrushWidget, CanvasMenuWidget, DrawingWidget
-
 
 # ---------------------------------------------------------------------------
 # DrawingWidget — initialization and state
