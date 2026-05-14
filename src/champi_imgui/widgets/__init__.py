@@ -91,6 +91,11 @@ from champi_imgui.widgets.slider import (
     SliderFloatWidget,
     SliderIntWidget,
 )
+from champi_imgui.widgets.drawing import (
+    BrushWidget,
+    CanvasMenuWidget,
+    DrawingWidget,
+)
 
 __all__ = [
     "ArrowButtonWidget",
@@ -154,4 +159,7 @@ __all__ = [
     "TooltipWidget",
     "TreeNodeWidget",
     "WindowWidget",
+    "BrushWidget",
+    "CanvasMenuWidget",
+    "DrawingWidget",
 ]
