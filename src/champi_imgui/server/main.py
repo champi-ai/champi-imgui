@@ -66,8 +66,6 @@ from champi_imgui.widgets.display import (
     PlotLinesWidget,
 )
 from champi_imgui.widgets.drawing import (
-    BrushWidget,
-    CanvasMenuWidget,
     DrawingWidget,
 )
 from champi_imgui.widgets.input import (
