@@ -278,7 +278,9 @@ class BrushWidget(Widget):
         imgui.pop_item_width()
 
         imgui.text("Line Width")
-        changed, new_line_width = imgui.slider_float("##line_width", line_width, 0.1, 10.0)
+        changed, new_line_width = imgui.slider_float(
+            "##line_width", line_width, 0.1, 10.0
+        )
         if changed:
             self.state.properties["line_width"] = new_line_width
 
