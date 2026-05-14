@@ -375,6 +375,7 @@ class DrawingWidget(Widget):
             self.state.properties["strokes"] = strokes
             self.state.properties["redo_stack"] = redo_stack
 
+
 class BrushWidget(Widget):
     """Brush controls sidebar for the drawing widget.
 
