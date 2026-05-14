@@ -401,16 +401,15 @@ class BrushWidget(Widget):
 class CanvasMenuWidget(Widget):
     """Context menu for canvas actions.
 
-    Provides a right-click menu with commands like:
-    - Undo
-    - Redo
-    - Clear Canvas
-    - Invert Colors
+    Provides a right-click context menu tied to the current ImGui window.
+    Opens on right-click anywhere in the window and exposes undo, redo,
+    and clear actions wired to an associated DrawingWidget by ID.
     """
 
     def __init__(
         self,
         widget_id: str,
+        drawing_widget_id: str = "",
         can_undo: bool = True,
         can_redo: bool = True,
         history_size: int = 10,
@@ -420,76 +419,53 @@ class CanvasMenuWidget(Widget):
 
         Args:
             widget_id: Unique widget identifier
+            drawing_widget_id: ID of the DrawingWidget this menu controls
             can_undo: Whether undo is available
             can_redo: Whether redo is available
             history_size: Maximum history size for commands
             **props: Additional properties (visible, etc.)
         """
+        props["drawing_widget_id"] = drawing_widget_id
         props["can_undo"] = can_undo
         props["can_redo"] = can_redo
         props["history_size"] = history_size
         super().__init__(widget_id, **props)
-        self._menu_open = False
 
     def render(self) -> None:  # pragma: no cover
-        """Render the canvas menu (if open).
+        """Render the canvas context menu.
 
-        The menu is typically triggered by right-click on the
-        DrawingWidget. Use imgui.open_context_menu() to open.
+        Opens via ImGui's named popup API on right-click anywhere in the
+        current window. Menu items invoke registered callbacks.
         """
         if not self.state.visible:
             return
 
-        can_undo: bool = self.state.properties.get("can_undo", True)
-        can_redo: bool = self.state.properties.get("can_redo", True)
-        history_size: int = self.state.properties.get("history_size", 10)
-        menu_open: bool = self.state.properties.get("menu_open", False)
+        popup_id = "##canvas_menu_" + self.widget_id
 
-        if not menu_open:
-            self.state.properties["menu_open"] = False
-            return
+        if imgui.is_window_hovered() and imgui.is_mouse_clicked(
+            imgui.MouseButton_.right
+        ):
+            imgui.open_popup(popup_id)
 
-        if can_undo:
-            clicked, _ = imgui.menu_item("Undo", "", False)
-            if clicked:
-                self.trigger_callback("on_undo")
+        if imgui.begin_popup(popup_id):
+            can_undo: bool = self.state.properties.get("can_undo", True)
+            can_redo: bool = self.state.properties.get("can_redo", True)
+            history_size: int = self.state.properties.get("history_size", 10)
 
-        if can_redo:
-            clicked, _ = imgui.menu_item("Redo", "", False)
-            if clicked:
-                self.trigger_callback("on_redo")
+            if can_undo:
+                clicked, _ = imgui.menu_item("Undo", "", False)
+                if clicked:
+                    self.trigger_callback("on_undo")
 
-        if self.state.properties.get("is_eraser", False):
-            clicked, _ = imgui.menu_item("Clear (Eraser)", "", False)
-            if clicked:
-                self.state.properties["is_eraser"] = False
-                self.trigger_callback("on_clear_eraser")
-        else:
+            if can_redo:
+                clicked, _ = imgui.menu_item("Redo", "", False)
+                if clicked:
+                    self.trigger_callback("on_redo")
+
             clicked, _ = imgui.menu_item("Clear Canvas", "", False)
             if clicked:
                 self.trigger_callback("on_clear")
 
-        clicked, _ = imgui.menu_item("Invert Colors", "", False)
-        if clicked:
-            self.trigger_callback("on_invert")
-
-        clicked, _ = imgui.menu_item("Save as PNG...", "", False)
-        if clicked:
-            self.trigger_callback("on_save_png")
-
-        clicked, _ = imgui.menu_item("Export Commands...", "", False)
-        if clicked:
-            self.trigger_callback("on_export_commands")
-
-        clicked, _ = imgui.menu_item("Properties...", "", False)
-        if clicked:
-            self.trigger_callback("on_properties")
-
-        clicked, _ = imgui.menu_item("Close Menu", "", False)
-        if clicked:
-            self.state.properties["menu_open"] = False
-
-        imgui.separator()
-        imgui.text(f"History: {history_size}")
-
-        imgui.end()
+            imgui.separator()
+            imgui.text(f"History: {history_size}")
+            imgui.end_popup()
