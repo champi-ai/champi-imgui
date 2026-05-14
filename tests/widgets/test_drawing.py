@@ -278,6 +278,21 @@ def test_canvas_menu_widget_serialize():
     assert data["properties"]["history_size"] == 20
 
 
+def test_canvas_menu_drawing_widget_id():
+    """CanvasMenuWidget stores drawing_widget_id in properties."""
+    w = CanvasMenuWidget("menu-3", drawing_widget_id="canvas-1")
+
+    assert w.state.properties["drawing_widget_id"] == "canvas-1"
+
+
+def test_canvas_menu_serialize_includes_drawing_widget_id():
+    """serialize() includes drawing_widget_id."""
+    w = CanvasMenuWidget("menu-4", drawing_widget_id="canvas-99")
+    data = w.serialize()
+
+    assert data["properties"]["drawing_widget_id"] == "canvas-99"
+
+
 # ---------------------------------------------------------------------------
 # WidgetFactory registration
 # ---------------------------------------------------------------------------
