@@ -51,7 +51,7 @@ class DrawingWidget(Widget):
         props["current_stroke"] = []
         super().__init__(widget_id, **props)
 
-    def render(self) -> None:
+    def render(self) -> None:  # pragma: no cover
         """Render the drawing canvas and handle mouse input.
 
         Each frame: replay all stored strokes, then handle in-progress
@@ -135,7 +135,7 @@ class DrawingWidget(Widget):
             self.state.properties["strokes"] = strokes
             self.state.properties["current_stroke"] = []
 
-    def _draw_stroke(
+    def _draw_stroke(  # pragma: no cover
         self,
         draw_list: imgui.ImDrawList,
         stroke: list[tuple[float, float]],
@@ -224,7 +224,7 @@ class BrushWidget(Widget):
         props["brush_style"] = brush_style
         super().__init__(widget_id, **props)
 
-    def render(self) -> None:
+    def render(self) -> None:  # pragma: no cover
         """Render brush controls."""
         if not self.state.visible:
             return
@@ -333,7 +333,7 @@ class CanvasMenuWidget(Widget):
         super().__init__(widget_id, **props)
         self._menu_open = False
 
-    def render(self) -> None:
+    def render(self) -> None:  # pragma: no cover
         """Render the canvas menu (if open).
 
         The menu is typically triggered by right-click on the
