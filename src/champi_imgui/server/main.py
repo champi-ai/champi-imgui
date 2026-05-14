@@ -3466,6 +3466,184 @@ def drawing_add_text(
         return {"success": False, "error": str(e)}
 
 
+@mcp.tool()
+def drawing_add_llm_stroke(
+    canvas_id: str,
+    widget_id: str,
+    points: list[list[float]],
+    color: list[float] | None = None,
+    brush_size: float = 3.0,
+    brush_style: str = "solid",
+) -> dict[str, Any]:
+    """Add a stroke drawn by the LLM to the whiteboard.
+
+    Directly appends a stroke with author="llm" to the drawing widget,
+    bypassing mouse input. Use this to programmatically draw on behalf of
+    the LLM in collaborative whiteboard sessions.
+
+    Args:
+        canvas_id: Target canvas identifier
+        widget_id: Target DrawingWidget identifier
+        points: List of [x, y] canvas-relative coordinates
+        color: RGBA color as [r, g, b, a] (0.0-1.0). Defaults to LLM blue.
+        brush_size: Brush thickness in pixels
+        brush_style: "solid", "dashed", or "dots"
+
+    Returns:
+        Success status and stroke count after adding
+    """
+    import time
+
+    from champi_imgui.widgets.drawing import AUTHOR_COLORS, DrawingWidget
+
+    try:
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if not canvas:
+            return {"success": False, "error": f"Canvas {canvas_id} not found"}
+        widget = canvas.widget_registry.get(widget_id)
+        if not widget:
+            return {"success": False, "error": f"Widget {widget_id} not found"}
+        if not isinstance(widget, DrawingWidget):
+            return {
+                "success": False,
+                "error": f"Widget {widget_id} is not a DrawingWidget",
+            }
+        color_tuple: tuple[float, float, float, float] = (
+            tuple(color) if color else AUTHOR_COLORS["llm"]  # type: ignore[assignment]
+        )
+        stroke_points = [(float(p[0]), float(p[1])) for p in points]
+        strokes: list[dict[str, Any]] = widget.state.properties.get("strokes", [])
+        strokes.append(
+            {
+                "points": stroke_points,
+                "author": "llm",
+                "timestamp": time.time(),
+                "tool": "brush",
+                "color": color_tuple,
+                "brush_size": brush_size,
+                "brush_style": brush_style,
+            }
+        )
+        widget.state.properties["strokes"] = strokes
+        return {
+            "success": True,
+            "data": {"widget_id": widget_id, "stroke_count": len(strokes)},
+        }
+    except Exception as e:
+        logger.error(f"Error adding LLM stroke to drawing widget '{widget_id}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def drawing_export_strokes(
+    canvas_id: str,
+    widget_id: str,
+    include_shapes: bool = True,
+    include_annotations: bool = True,
+) -> dict[str, Any]:
+    """Export all strokes, shapes, and annotations from a drawing widget as JSON.
+
+    Args:
+        canvas_id: Target canvas identifier
+        widget_id: DrawingWidget identifier
+        include_shapes: Whether to include geometric shapes in the export
+        include_annotations: Whether to include text annotations in the export
+
+    Returns:
+        Success status and serialised whiteboard state
+    """
+    try:
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if not canvas:
+            return {"success": False, "error": f"Canvas {canvas_id} not found"}
+        widget = canvas.widget_registry.get(widget_id)
+        if not widget:
+            return {"success": False, "error": f"Widget {widget_id} not found"}
+        from champi_imgui.widgets.drawing import DrawingWidget
+
+        if not isinstance(widget, DrawingWidget):
+            return {
+                "success": False,
+                "error": f"Widget {widget_id} is not a DrawingWidget",
+            }
+        data: dict[str, Any] = {
+            "widget_id": widget_id,
+            "strokes": widget.state.properties.get("strokes", []),
+        }
+        if include_shapes:
+            data["shapes"] = widget.state.properties.get("shapes", [])
+        if include_annotations:
+            data["annotations"] = widget.state.properties.get("annotations", [])
+        return {"success": True, "data": data}
+    except Exception as e:
+        logger.error(f"Error exporting strokes from '{widget_id}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def drawing_import_strokes(
+    canvas_id: str,
+    widget_id: str,
+    strokes: list | None = None,
+    shapes: list | None = None,
+    annotations: list | None = None,
+    merge: bool = False,
+) -> dict[str, Any]:
+    """Import strokes, shapes, and annotations into a drawing widget.
+
+    Args:
+        canvas_id: Target canvas identifier
+        widget_id: DrawingWidget identifier
+        strokes: List of strokes to import (each stroke is a list of [x, y] points)
+        shapes: List of shape dicts to import
+        annotations: List of annotation dicts to import
+        merge: When False (default) replace existing data; when True append to it
+
+    Returns:
+        Success status and widget identifier
+    """
+    try:
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if not canvas:
+            return {"success": False, "error": f"Canvas {canvas_id} not found"}
+        widget = canvas.widget_registry.get(widget_id)
+        if not widget:
+            return {"success": False, "error": f"Widget {widget_id} not found"}
+        from champi_imgui.widgets.drawing import DrawingWidget
+
+        if not isinstance(widget, DrawingWidget):
+            return {
+                "success": False,
+                "error": f"Widget {widget_id} is not a DrawingWidget",
+            }
+
+        def _apply() -> None:
+            props = widget.state.properties
+            if strokes is not None:
+                if merge:
+                    props["strokes"] = props.get("strokes", []) + list(strokes)
+                else:
+                    props["strokes"] = list(strokes)
+            if shapes is not None:
+                if merge:
+                    props["shapes"] = props.get("shapes", []) + list(shapes)
+                else:
+                    props["shapes"] = list(shapes)
+            if annotations is not None:
+                if merge:
+                    props["annotations"] = props.get("annotations", []) + list(
+                        annotations
+                    )
+                else:
+                    props["annotations"] = list(annotations)
+
+        _apply()
+        return {"success": True, "data": {"widget_id": widget_id}}
+    except Exception as e:
+        logger.error(f"Error importing strokes into '{widget_id}': {e}")
+        return {"success": False, "error": str(e)}
+
+
 def _hex_to_rgba(hex_color: str) -> tuple[float, float, float, float]:
     """Convert hex color to RGBA tuple.
 
