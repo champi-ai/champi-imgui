@@ -179,7 +179,10 @@ def test_create_widget_canvas_not_found():
         (server.add_group, {"canvas_id": "x", "widget_id": "w"}),
         (server.add_collapsing_header, {"canvas_id": "x", "widget_id": "w"}),
         (server.add_tab_bar, {"canvas_id": "x", "widget_id": "w"}),
-        (server.add_tab_item, {"canvas_id": "x", "widget_id": "w"}),
+        (
+            server.add_tab_item,
+            {"canvas_id": "x", "widget_id": "w", "tab_bar_id": "bar"},
+        ),
         (server.add_separator, {"canvas_id": "x", "widget_id": "w"}),
         (server.add_spacing, {"canvas_id": "x", "widget_id": "w"}),
         (server.add_dummy, {"canvas_id": "x", "widget_id": "w"}),

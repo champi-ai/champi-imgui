@@ -65,6 +65,9 @@ from champi_imgui.widgets.display import (
     ImageWidget,
     PlotLinesWidget,
 )
+from champi_imgui.widgets.drawing import (
+    DrawingWidget,
+)
 from champi_imgui.widgets.input import (
     CheckboxFlagsWidget,
     ComboWidget,
@@ -1581,6 +1584,7 @@ def add_tab_bar(
 def add_tab_item(
     canvas_id: str,
     widget_id: str,
+    tab_bar_id: str,
     label: str = "Tab",
     closable: bool = False,
 ) -> dict[str, Any]:
@@ -1589,6 +1593,7 @@ def add_tab_item(
     Args:
         canvas_id: Target canvas identifier
         widget_id: Unique identifier for the widget
+        tab_bar_id: Widget ID of the parent TabBarWidget
         label: Tab label text
         closable: Whether the tab shows a close button
 
@@ -1596,8 +1601,23 @@ def add_tab_item(
         Success status and serialized widget data
     """
     try:
-        widget = TabItemWidget(widget_id, label=label, closable=closable)
-        return _create_widget_in_canvas(canvas_id, widget)
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if not canvas:
+            return {"success": False, "error": f"Canvas '{canvas_id}' not found"}
+        tab_bar = canvas.widget_registry.get(tab_bar_id)
+        if tab_bar is None:
+            return {"success": False, "error": f"TabBarWidget '{tab_bar_id}' not found"}
+        if not isinstance(tab_bar, TabBarWidget):
+            return {
+                "success": False,
+                "error": f"Widget '{tab_bar_id}' is not a TabBarWidget",
+            }
+
+        tab_item = TabItemWidget(widget_id, label=label, closable=closable)
+        tab_bar.add_tab_item(tab_item)
+        canvas_manager.ensure_canvas_running(canvas_id)
+        canvas.add_widget(tab_item)
+        return {"success": True, "data": tab_item.serialize()}
     except Exception as e:
         logger.error(f"Error adding tab item '{widget_id}': {e}")
         return {"success": False, "error": str(e)}
@@ -3083,6 +3103,224 @@ def unsubscribe_events(
     except Exception as e:
         logger.error(f"Error unsubscribing events for '{widget_id}': {e}")
         return {"success": False, "error": str(e)}
+
+
+# ==============================================================================
+# Drawing widget tools
+# ==============================================================================
+
+
+@mcp.tool()
+def add_drawing_area(
+    canvas_id: str,
+    widget_id: str,
+    color: str = "#FF0000",
+    brush_size: float = 5.0,
+    line_width: float = 1.0,
+    is_clear: bool = False,
+    is_eraser: bool = False,
+    brush_style: str = "solid",
+    history_size: int = 10,
+) -> dict[str, Any]:
+    """Add a drawing area to the canvas.
+
+    Creates a freehand drawing widget that accepts mouse input for
+    sketching, with brush controls and undo/redo support.
+
+    Args:
+        canvas_id: Target canvas identifier
+        widget_id: Unique identifier for the widget
+        color: Brush color as hex string (e.g., "#FF0000" for red)
+        brush_size: Brush radius in pixels
+        line_width: Line width for text/annotation
+        is_clear: Whether canvas should be cleared on first render
+        is_eraser: Whether brush starts in eraser mode
+        brush_style: "solid", "dashed", or "dots"
+        history_size: Maximum undo history size
+
+    Returns:
+        Success status and serialized widget data
+    """
+    try:
+        # Drawing widget is imported locally in add_drawing_area() to avoid unused import warning
+        # The widget is available via: from champi_imgui.widgets.drawing import DrawingWidget
+
+        # Parse hex color
+        if color.startswith("#"):
+            color_tuple = _hex_to_rgba(color[1:].upper())
+        else:
+            color_tuple = _parse_color(color)
+
+        widget = DrawingWidget(
+            widget_id,
+            color=color_tuple,
+            brush_size=brush_size,
+            line_width=line_width,
+            is_clear=is_clear,
+            is_eraser=is_eraser,
+            brush_style=brush_style,
+            history_size=history_size,
+        )
+        return _create_widget_in_canvas(canvas_id, widget)
+    except Exception as e:
+        logger.error(f"Error adding drawing area '{widget_id}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def add_brush_controls(
+    canvas_id: str,
+    widget_id: str,
+    color: str = "#FF0000",
+    brush_size: float = 5.0,
+    line_width: float = 1.0,
+    is_eraser: bool = False,
+    brush_style: str = "solid",
+) -> dict[str, Any]:
+    """Add brush controls sidebar to the canvas.
+
+    Provides UI controls for brush color, size, style, and eraser toggle.
+    Should be positioned adjacent to a DrawingWidget.
+
+    Args:
+        canvas_id: Target canvas identifier
+        widget_id: Unique identifier for the widget
+        color: Current brush color
+        brush_size: Current brush size
+        line_width: Current line width
+        is_eraser: Whether eraser mode is active
+        brush_style: Current brush style
+
+    Returns:
+        Success status and serialized widget data
+    """
+    try:
+        from champi_imgui.widgets.drawing import BrushWidget
+
+        if color.startswith("#"):
+            color_tuple = _hex_to_rgba(color[1:].upper())
+        else:
+            color_tuple = _parse_color(color)
+
+        widget = BrushWidget(
+            widget_id,
+            color=color_tuple,
+            brush_size=brush_size,
+            line_width=line_width,
+            is_eraser=is_eraser,
+            brush_style=brush_style,
+        )
+        return _create_widget_in_canvas(canvas_id, widget)
+    except Exception as e:
+        logger.error(f"Error adding brush controls '{widget_id}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def add_canvas_menu(
+    canvas_id: str,
+    widget_id: str,
+    can_undo: bool = True,
+    can_redo: bool = True,
+    history_size: int = 10,
+    is_eraser: bool = False,
+) -> dict[str, Any]:
+    """Add a canvas context menu to the canvas.
+
+    Provides a right-click menu with commands like undo, redo, clear,
+    invert colors, and export options.
+
+    Args:
+        canvas_id: Target canvas identifier
+        widget_id: Unique identifier for the widget
+        can_undo: Whether undo is available
+        can_redo: Whether redo is available
+        history_size: Maximum history size for commands
+        is_eraser: Whether eraser mode is active
+
+    Returns:
+        Success status and serialized widget data
+    """
+    try:
+        from champi_imgui.widgets.drawing import CanvasMenuWidget
+
+        widget = CanvasMenuWidget(
+            widget_id,
+            can_undo=can_undo,
+            can_redo=can_redo,
+            history_size=history_size,
+            is_eraser=is_eraser,
+        )
+        return _create_widget_in_canvas(canvas_id, widget)
+    except Exception as e:
+        logger.error(f"Error adding canvas menu '{widget_id}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+def _hex_to_rgba(hex_color: str) -> tuple[float, float, float, float]:
+    """Convert hex color to RGBA tuple.
+
+    Args:
+        hex_color: Hex color string like "#FF0000"
+
+    Returns:
+        RGBA tuple (r, g, b, a) with values 0.0-1.0
+    """
+    hex_color = hex_color.upper()
+    try:
+        r = int(hex_color[0:2], 16) / 255.0
+        g = int(hex_color[2:4], 16) / 255.0
+        b = int(hex_color[4:6], 16) / 255.0
+        a = int(hex_color[6:8], 16) / 255.0 if len(hex_color) >= 8 else 1.0
+        return (r, g, b, a)
+    except (IndexError, ValueError):
+        return (1.0, 1.0, 1.0, 1.0)
+
+
+def _parse_color(color: str) -> tuple[float, float, float, float]:
+    """Parse a color string (hex, rgb, rgba, or named color).
+
+    Args:
+        color: Color string in various formats
+
+    Returns:
+        RGBA tuple (r, g, b, a) with values 0.0-1.0
+    """
+    # Try hex first
+    if color.startswith("#"):
+        return _hex_to_rgba(color)
+
+    # Try RGB/RGBA tuple
+    try:
+        parts = [float(x) for x in color.split(",")]
+        if len(parts) == 3:
+            return (parts[0], parts[1], parts[2], 1.0)
+        elif len(parts) == 4:
+            return (parts[0], parts[1], parts[2], parts[3])
+    except (ValueError, TypeError):
+        pass
+
+    # Try named colors
+    named_colors = {
+        "red": (1.0, 0.0, 0.0, 1.0),
+        "green": (0.0, 1.0, 0.0, 1.0),
+        "blue": (0.0, 0.0, 1.0, 1.0),
+        "yellow": (1.0, 1.0, 0.0, 1.0),
+        "cyan": (0.0, 1.0, 1.0, 1.0),
+        "magenta": (1.0, 0.0, 1.0, 1.0),
+        "black": (0.0, 0.0, 0.0, 1.0),
+        "white": (1.0, 1.0, 1.0, 1.0),
+        "orange": (1.0, 0.5, 0.0, 1.0),
+        "purple": (0.5, 0.0, 0.5, 1.0),
+        "pink": (1.0, 0.5, 0.8, 1.0),
+    }
+
+    lower_color = color.lower().strip()
+    if lower_color in named_colors:
+        return named_colors[lower_color]
+
+    # Default to red
+    return (1.0, 0.0, 0.0, 1.0)
 
 
 @mcp.tool()

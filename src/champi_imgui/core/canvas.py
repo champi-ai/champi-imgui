@@ -155,8 +155,10 @@ class Canvas:
             flags=imgui.WindowFlags_.no_collapse,
         )
 
-        # Render all registered widgets
+        # Render all registered widgets (skip widgets owned by a parent container)
         for widget in self.widget_registry.get_all().values():
+            if widget._parent_id is not None:
+                continue
             try:
                 widget.render()
             except Exception as e:
