@@ -242,13 +242,16 @@ class BrushWidget(Widget):
 
         imgui.push_item_width(160)
         imgui.set_next_item_width(160)
-        imgui.color_picker4("##color", color)
+        changed, new_color = imgui.color_picker4("##color", color)
+        if changed:
+            self.state.properties["color"] = new_color
         imgui.pop_item_width()
 
         imgui.push_item_width(150)
         imgui.set_next_item_width(150)
-        _, checked = imgui.checkbox("Eraser", is_eraser)
-        self.state.properties["is_eraser"] = checked
+        changed, new_eraser = imgui.checkbox("Eraser", is_eraser)
+        if changed:
+            self.state.properties["is_eraser"] = new_eraser
         imgui.pop_item_width()
 
         style_options: list[tuple[str, str]] = [
@@ -259,22 +262,25 @@ class BrushWidget(Widget):
         style_names = [s for s, _ in style_options]
         style_values = [v for _, v in style_options]
         current_style_idx = (
-            style_names.index(brush_style) if brush_style in style_names else 0
+            style_values.index(brush_style) if brush_style in style_values else 0
         )
-        _, selected_style_idx = imgui.combo(
+        changed, new_style_idx = imgui.combo(
             "##brush_style", current_style_idx, style_names, 0
         )
-        if selected_style_idx != current_style_idx:
-            self.state.properties["brush_style"] = style_values[selected_style_idx]
+        if changed:
+            self.state.properties["brush_style"] = style_values[new_style_idx]
 
         imgui.push_item_width(150)
         imgui.set_next_item_width(150)
-        imgui.slider_float("##brush_size", brush_size, 1.0, 50.0)
+        changed, new_size = imgui.slider_float("##brush_size", brush_size, 1.0, 50.0)
+        if changed:
+            self.state.properties["brush_size"] = new_size
         imgui.pop_item_width()
 
         imgui.text("Line Width")
-        imgui.slider_float("##line_width", line_width, 0.1, 10.0)
-        self.state.properties["line_width"] = line_width
+        changed, new_line_width = imgui.slider_float("##line_width", line_width, 0.1, 10.0)
+        if changed:
+            self.state.properties["line_width"] = new_line_width
 
         imgui.separator()
         imgui.text("Preview")
@@ -283,8 +289,9 @@ class BrushWidget(Widget):
         )
         preview_size = brush_size * 1.5
         draw_list = imgui.get_window_draw_list()
+        cursor = imgui.get_cursor_screen_pos()
         draw_list.add_circle(
-            imgui.ImVec2(100, 15),
+            imgui.ImVec2(cursor.x + preview_size + 5, cursor.y + preview_size + 5),
             preview_size,
             imgui.color_convert_float4_to_u32(imgui.ImVec4(*preview_dot_color)),
             20,
