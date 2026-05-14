@@ -3294,9 +3294,9 @@ def _parse_color(color: str) -> tuple[float, float, float, float]:
     try:
         parts = [float(x) for x in color.split(",")]
         if len(parts) == 3:
-            return (*parts, 1.0)
+            return (parts[0], parts[1], parts[2], 1.0)
         elif len(parts) == 4:
-            return tuple(parts)
+            return (parts[0], parts[1], parts[2], parts[3])
     except (ValueError, TypeError):
         pass
 

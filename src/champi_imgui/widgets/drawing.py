@@ -103,9 +103,6 @@ class DrawingWidget(Widget):
         # Handle mouse input for drawing
         self._handle_mouse_input(width, height, draw_color, brush_size, brush_style)
 
-        # Update history with current state
-        self._update_history(draw_color)
-
     def _clear_canvas(self, width: float, height: float) -> None:
         """Clear the canvas by resetting history.
 
@@ -509,7 +506,7 @@ class CanvasMenuWidget(Widget):
             imgui.text(f"History: {history_size}")
 
             imgui.end()
-            return True
+            return
 
         self.state.properties["menu_open"] = False
-        return False
+        return
