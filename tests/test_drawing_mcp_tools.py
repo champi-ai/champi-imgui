@@ -353,3 +353,115 @@ class TestDrawingAddText:
 
         assert result["success"] is False
         assert "not found" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# drawing_export_strokes / drawing_import_strokes
+# ---------------------------------------------------------------------------
+
+
+class TestDrawingExportImport:
+    def test_export_returns_strokes(self, cid):
+        """drawing_export_strokes includes the strokes list."""
+        widget = _make_canvas_with_drawing(cid)
+        stroke = [(0.0, 0.0), (5.0, 5.0)]
+        widget.state.properties["strokes"] = [stroke]
+
+        result = server.drawing_export_strokes.fn(cid, "draw1")
+
+        assert result["success"] is True
+        assert result["data"]["strokes"] == [stroke]
+
+    def test_export_includes_shapes_by_default(self, cid):
+        """drawing_export_strokes includes shapes when include_shapes=True."""
+        widget = _make_canvas_with_drawing(cid)
+        widget.add_shape("rect", x1=0.0, y1=0.0, x2=10.0, y2=10.0)
+
+        result = server.drawing_export_strokes.fn(cid, "draw1")
+
+        assert result["success"] is True
+        assert "shapes" in result["data"]
+        assert len(result["data"]["shapes"]) == 1
+
+    def test_export_excludes_shapes_when_flag_false(self, cid):
+        """drawing_export_strokes omits shapes when include_shapes=False."""
+        widget = _make_canvas_with_drawing(cid)
+        widget.add_shape("rect", x1=0.0, y1=0.0, x2=10.0, y2=10.0)
+
+        result = server.drawing_export_strokes.fn(cid, "draw1", include_shapes=False)
+
+        assert result["success"] is True
+        assert "shapes" not in result["data"]
+
+    def test_import_replaces_strokes(self, cid):
+        """drawing_import_strokes replaces existing strokes when merge=False."""
+        widget = _make_canvas_with_drawing(cid)
+        widget.state.properties["strokes"] = [[(0.0, 0.0), (1.0, 1.0)]]
+
+        new_stroke = [(2.0, 2.0), (3.0, 3.0)]
+        result = server.drawing_import_strokes.fn(cid, "draw1", strokes=[new_stroke])
+
+        assert result["success"] is True
+        assert widget.state.properties["strokes"] == [new_stroke]
+
+    def test_import_merges_strokes(self, cid):
+        """drawing_import_strokes appends strokes when merge=True."""
+        widget = _make_canvas_with_drawing(cid)
+        old_stroke = [(0.0, 0.0), (1.0, 1.0)]
+        widget.state.properties["strokes"] = [old_stroke]
+
+        new_stroke = [(2.0, 2.0), (3.0, 3.0)]
+        result = server.drawing_import_strokes.fn(
+            cid, "draw1", strokes=[new_stroke], merge=True
+        )
+
+        assert result["success"] is True
+        assert widget.state.properties["strokes"] == [old_stroke, new_stroke]
+
+    def test_import_shapes(self, cid):
+        """drawing_import_strokes replaces shapes list when merge=False."""
+        widget = _make_canvas_with_drawing(cid)
+        shape = {"type": "rect", "x1": 0.0, "y1": 0.0, "x2": 10.0, "y2": 10.0}
+        result = server.drawing_import_strokes.fn(cid, "draw1", shapes=[shape])
+
+        assert result["success"] is True
+        assert widget.state.properties["shapes"] == [shape]
+
+    def test_export_import_roundtrip(self, cid):
+        """Exported data can be re-imported to reproduce the original state."""
+        widget = _make_canvas_with_drawing(cid)
+        stroke = [(1.0, 2.0), (3.0, 4.0)]
+        widget.state.properties["strokes"] = [stroke]
+        widget.add_shape("circle", cx=5.0, cy=5.0, radius=3.0)
+        widget.add_annotation(1.0, 1.0, "note")
+
+        export_result = server.drawing_export_strokes.fn(cid, "draw1")
+        assert export_result["success"] is True
+        exported = export_result["data"]
+
+        widget.clear()
+        import_result = server.drawing_import_strokes.fn(
+            cid,
+            "draw1",
+            strokes=exported["strokes"],
+            shapes=exported["shapes"],
+            annotations=exported["annotations"],
+        )
+        assert import_result["success"] is True
+        assert widget.state.properties["strokes"] == [stroke]
+        assert len(widget.state.properties["shapes"]) == 1
+        assert len(widget.state.properties["annotations"]) == 1
+
+    def test_export_missing_canvas(self):
+        """drawing_export_strokes returns error when canvas does not exist."""
+        result = server.drawing_export_strokes.fn("missing", "draw1")
+
+        assert result["success"] is False
+        assert "not found" in result["error"]
+
+    def test_import_missing_canvas(self):
+        """drawing_import_strokes returns error when canvas does not exist."""
+        result = server.drawing_import_strokes.fn("missing", "draw1", strokes=[])
+
+        assert result["success"] is False
+        assert "not found" in result["error"]
