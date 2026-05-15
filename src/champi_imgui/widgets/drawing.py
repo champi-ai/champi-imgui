@@ -197,25 +197,21 @@ class DrawingWidget(Widget):
             brush_style: "solid", "dashed", or "dots"
             canvas_min: Canvas origin in screen coordinates
         """
+        if not stroke:
+            return
         color_u32 = imgui.color_convert_float4_to_u32(imgui.ImVec4(*color))
-        vec2_points: list[imgui.ImVec2] = [
+        pts: list[imgui.ImVec2] = [
             imgui.ImVec2(canvas_min.x + x, canvas_min.y + y) for x, y in stroke
         ]
 
-        if brush_style == "solid":
-            draw_list.add_polyline(vec2_points, color_u32, 0, brush_size)  # type: ignore[arg-type]
-
-        elif brush_style == "dashed":
-            # Draw every other segment
-            for i in range(0, len(vec2_points) - 1, 2):
-                draw_list.add_line(
-                    vec2_points[i], vec2_points[i + 1], color_u32, brush_size
-                )
-
-        elif brush_style == "dots":
-            # Draw a filled circle at every 3rd point
-            for i in range(0, len(vec2_points), 3):
-                draw_list.add_circle_filled(vec2_points[i], brush_size * 0.5, color_u32)
+        if brush_style == "dots":
+            for i in range(0, len(pts), 3):
+                draw_list.add_circle_filled(pts[i], brush_size * 0.5, color_u32)
+        else:
+            # solid: every segment; dashed: every other segment
+            step = 2 if brush_style == "dashed" else 1
+            for i in range(0, len(pts) - 1, step):
+                draw_list.add_line(pts[i], pts[i + 1], color_u32, brush_size)
 
     def _draw_shape(  # pragma: no cover
         self,

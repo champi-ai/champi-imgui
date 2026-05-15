@@ -83,6 +83,16 @@ class Canvas:
         logger.debug(
             f"Added widget '{widget.widget_id}' to canvas '{self.state.canvas_id}'"
         )
+        self._wake_render()
+
+    def _wake_render(self) -> None:
+        """Signal hello_imgui to render a fresh frame after external state mutation."""
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            hello_imgui.get_runner_params().fps_idling.time_active_after_last_event = (
+                0.5
+            )
 
     def remove_widget(self, widget_id: str) -> bool:
         """Remove a widget from the canvas registry.
@@ -162,7 +172,11 @@ class Canvas:
             try:
                 widget.render()
             except Exception as e:
-                logger.error(f"Error rendering widget '{widget.widget_id}': {e}")
+                import traceback
+
+                logger.error(
+                    f"Error rendering widget '{widget.widget_id}': {e}\n{traceback.format_exc()}"
+                )
 
         imgui.end()
 
