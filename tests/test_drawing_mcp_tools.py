@@ -743,9 +743,7 @@ class TestDrawingWidgetImportRoundtrip:
         # Create canvas and drawing widget with data
         server.create_canvas.fn(cid, auto_start=False)
         server.add_drawing_area.fn(cid, "draw1")
-        server.drawing_add_llm_stroke.fn(
-            cid, "draw1", points=[[1.0, 2.0], [3.0, 4.0]]
-        )
+        server.drawing_add_llm_stroke.fn(cid, "draw1", points=[[1.0, 2.0], [3.0, 4.0]])
         server.drawing_add_text.fn(cid, "draw1", x=5.0, y=5.0, text="label")
         server.drawing_add_shape.fn(
             cid, "draw1", "line", x1=0.0, y1=0.0, x2=50.0, y2=50.0
@@ -770,7 +768,9 @@ class TestDrawingWidgetImportRoundtrip:
         assert imported_canvas is not None
 
         widget = imported_canvas.widget_registry.get("draw1")
-        assert widget is not None, "DrawingWidget must be in the imported canvas registry"
+        assert widget is not None, (
+            "DrawingWidget must be in the imported canvas registry"
+        )
         assert isinstance(widget, DrawingWidget)
         assert len(widget.state.properties.get("strokes", [])) == 1
         assert len(widget.state.properties.get("annotations", [])) == 1
