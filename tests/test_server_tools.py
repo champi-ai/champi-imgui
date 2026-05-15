@@ -107,6 +107,28 @@ def test_get_canvas_state_success(cid):
     assert result["data"]["title"] == "MyCanvas"
 
 
+def test_get_canvas_state_includes_registered_widgets(cid):
+    """get_canvas_state must report widgets from widget_registry, not canvas.state.widgets."""
+    server.create_canvas.fn(cid, auto_start=False)
+    server.add_drawing_area.fn(cid, "draw1")
+
+    result = server.get_canvas_state.fn(cid)
+
+    assert result["success"] is True
+    widgets = result["data"]["widgets"]
+    assert "draw1" in widgets, "DrawingWidget must appear in get_canvas_state response"
+
+
+def test_get_canvas_state_widgets_empty_before_add(cid):
+    """get_canvas_state returns an empty widgets dict when no widgets have been added."""
+    server.create_canvas.fn(cid, auto_start=False)
+
+    result = server.get_canvas_state.fn(cid)
+
+    assert result["success"] is True
+    assert result["data"]["widgets"] == {}
+
+
 # ---------------------------------------------------------------------------
 # shutdown_canvas
 # ---------------------------------------------------------------------------

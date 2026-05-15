@@ -664,3 +664,114 @@ class TestExportImportWithMetadata:
         assert strokes[0]["timestamp"] == 999.0
         assert strokes[1]["author"] == "llm"
         assert strokes[1]["timestamp"] == 1234.0
+
+
+# ---------------------------------------------------------------------------
+# Regression: strokes/annotations stored in state.properties must be
+# readable back from the registry after add_drawing_area (issue #79)
+# ---------------------------------------------------------------------------
+
+
+class TestDrawingWidgetStatePreserved:
+    def test_strokes_stored_in_registry_widget(self, cid):
+        """Strokes added via drawing_add_llm_stroke are visible on the widget
+        retrieved from canvas.widget_registry (not a stale copy)."""
+        server.create_canvas.fn(cid, auto_start=False)
+        server.add_drawing_area.fn(cid, "draw1")
+
+        server.drawing_add_llm_stroke.fn(
+            cid, "draw1", points=[[0.0, 0.0], [10.0, 10.0]]
+        )
+
+        canvas = server.canvas_manager.get_canvas(cid)
+        assert canvas is not None
+        widget = canvas.widget_registry.get("draw1")
+        assert widget is not None
+        strokes = widget.state.properties.get("strokes", [])
+        assert len(strokes) == 1, "Stroke must be present in the registry widget"
+
+    def test_annotations_stored_in_registry_widget(self, cid):
+        """Text annotations added via drawing_add_text are visible on the
+        widget retrieved from canvas.widget_registry."""
+        server.create_canvas.fn(cid, auto_start=False)
+        server.add_drawing_area.fn(cid, "draw1")
+
+        server.drawing_add_text.fn(cid, "draw1", x=5.0, y=10.0, text="hello")
+
+        canvas = server.canvas_manager.get_canvas(cid)
+        assert canvas is not None
+        widget = canvas.widget_registry.get("draw1")
+        assert widget is not None
+        annotations = widget.state.properties.get("annotations", [])
+        assert len(annotations) == 1
+        assert annotations[0]["text"] == "hello"
+
+    def test_shapes_stored_in_registry_widget(self, cid):
+        """Shapes added via drawing_add_shape are visible on the widget
+        retrieved from canvas.widget_registry."""
+        server.create_canvas.fn(cid, auto_start=False)
+        server.add_drawing_area.fn(cid, "draw1")
+
+        server.drawing_add_shape.fn(
+            cid, "draw1", "rect", x1=0.0, y1=0.0, x2=100.0, y2=100.0
+        )
+
+        canvas = server.canvas_manager.get_canvas(cid)
+        assert canvas is not None
+        widget = canvas.widget_registry.get("draw1")
+        assert widget is not None
+        shapes = widget.state.properties.get("shapes", [])
+        assert len(shapes) == 1
+        assert shapes[0]["type"] == "rect"
+
+
+# ---------------------------------------------------------------------------
+# Regression: import_canvas_json must restore DrawingWidget with its strokes
+# ---------------------------------------------------------------------------
+
+
+class TestDrawingWidgetImportRoundtrip:
+    def test_drawing_widget_survives_export_import(self, cid, tmp_path):
+        """A DrawingWidget with strokes/annotations exported to JSON and then
+        re-imported must land in the new canvas's widget_registry with its
+        data intact."""
+        import json
+
+        from champi_imgui.core.serialization import UIExporter
+        from champi_imgui.widgets.drawing import DrawingWidget
+
+        # Create canvas and drawing widget with data
+        server.create_canvas.fn(cid, auto_start=False)
+        server.add_drawing_area.fn(cid, "draw1")
+        server.drawing_add_llm_stroke.fn(
+            cid, "draw1", points=[[1.0, 2.0], [3.0, 4.0]]
+        )
+        server.drawing_add_text.fn(cid, "draw1", x=5.0, y=5.0, text="label")
+        server.drawing_add_shape.fn(
+            cid, "draw1", "line", x1=0.0, y1=0.0, x2=50.0, y2=50.0
+        )
+
+        # Export to JSON
+        canvas = server.canvas_manager.get_canvas(cid)
+        assert canvas is not None
+        json_str = UIExporter.export_canvas_state(canvas)
+        data = json.loads(json_str)
+
+        # Patch canvas_id to avoid collision, then import
+        new_cid = cid + "_imported"
+        data["canvas_id"] = new_cid
+        filepath = str(tmp_path / "drawing_export.json")
+        with open(filepath, "w") as f:
+            json.dump(data, f)
+
+        from champi_imgui.core.serialization import UIImporter
+
+        imported_canvas = UIImporter.import_from_json(filepath, server.canvas_manager)
+        assert imported_canvas is not None
+
+        widget = imported_canvas.widget_registry.get("draw1")
+        assert widget is not None, "DrawingWidget must be in the imported canvas registry"
+        assert isinstance(widget, DrawingWidget)
+        assert len(widget.state.properties.get("strokes", [])) == 1
+        assert len(widget.state.properties.get("annotations", [])) == 1
+        assert len(widget.state.properties.get("shapes", [])) == 1

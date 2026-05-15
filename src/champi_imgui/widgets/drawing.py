@@ -49,16 +49,16 @@ class DrawingWidget(Widget):
             size: Canvas size as (width, height) in pixels
             **props: Additional properties (visible, enabled, etc.)
         """
-        props["color"] = color
-        props["brush_size"] = brush_size
-        props["is_eraser"] = is_eraser
-        props["brush_style"] = brush_style
-        props["size"] = size
-        props["strokes"] = []
-        props["current_stroke"] = []
-        props["shapes"] = []
-        props["annotations"] = []
-        props["redo_stack"] = []
+        props.setdefault("color", color)
+        props.setdefault("brush_size", brush_size)
+        props.setdefault("is_eraser", is_eraser)
+        props.setdefault("brush_style", brush_style)
+        props.setdefault("size", size)
+        props.setdefault("strokes", [])
+        props.setdefault("current_stroke", [])
+        props.setdefault("shapes", [])
+        props.setdefault("annotations", [])
+        props.setdefault("redo_stack", [])
         super().__init__(widget_id, **props)
 
     def render(self) -> None:  # pragma: no cover

@@ -243,9 +243,14 @@ def get_canvas_state(canvas_id: str) -> dict[str, Any]:
                 "error": f"Canvas '{canvas_id}' not found",
             }
 
+        state_dict = canvas.state.to_dict()
+        state_dict["widgets"] = {
+            wid: widget.serialize()
+            for wid, widget in canvas.widget_registry.get_all().items()
+        }
         return {
             "success": True,
-            "data": canvas.state.to_dict(),
+            "data": state_dict,
         }
 
     except Exception as e:
