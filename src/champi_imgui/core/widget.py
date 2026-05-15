@@ -215,8 +215,11 @@ class WidgetRegistry:
         )
 
         self._factory.register("drawing_area", DrawingWidget)
+        self._factory.register("drawingwidget", DrawingWidget)
         self._factory.register("brush_controls", BrushWidget)
+        self._factory.register("brushwidget", BrushWidget)
         self._factory.register("canvas_menu", CanvasMenuWidget)
+        self._factory.register("canvasmenuwidget", CanvasMenuWidget)
 
     @property
     def factory(self) -> WidgetFactory:
