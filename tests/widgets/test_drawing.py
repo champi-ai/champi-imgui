@@ -342,3 +342,77 @@ def test_factory_create_with_props():
 
     assert isinstance(widget, DrawingWidget)
     assert widget.state.properties["brush_size"] == 15.0
+
+
+# ---------------------------------------------------------------------------
+# Stroke metadata
+# ---------------------------------------------------------------------------
+
+
+def _make_stroke(author: str = "user", tool: str = "brush") -> dict:
+    """Return a minimal stroke dict with required metadata keys."""
+    return {
+        "points": [(0.0, 0.0), (10.0, 10.0)],
+        "author": author,
+        "timestamp": 1000.0,
+        "tool": tool,
+        "color": (1.0, 0.0, 0.0, 1.0),
+        "brush_size": 5.0,
+        "brush_style": "solid",
+    }
+
+
+def test_stroke_metadata_defaults():
+    """Stroke dicts have required metadata keys after an undo/redo cycle."""
+    w = DrawingWidget("canvas-meta-1")
+    stroke = _make_stroke(author="user", tool="brush")
+    w.state.properties["strokes"] = [stroke]
+
+    w.undo()
+    w.redo()
+
+    strokes = w.state.properties["strokes"]
+    assert len(strokes) == 1
+    s = strokes[0]
+    assert "points" in s
+    assert "author" in s
+    assert "timestamp" in s
+    assert "tool" in s
+
+
+def test_get_strokes_by_author_user():
+    """get_strokes_by_author('user') returns only user strokes."""
+    w = DrawingWidget("canvas-meta-2")
+    w.state.properties["strokes"] = [
+        _make_stroke(author="user"),
+        _make_stroke(author="llm"),
+        _make_stroke(author="user"),
+    ]
+
+    result = w.get_strokes_by_author("user")
+
+    assert len(result) == 2
+    assert all(s["author"] == "user" for s in result)
+
+
+def test_get_strokes_by_author_llm():
+    """get_strokes_by_author('llm') returns only LLM strokes."""
+    w = DrawingWidget("canvas-meta-3")
+    w.state.properties["strokes"] = [
+        _make_stroke(author="user"),
+        _make_stroke(author="llm"),
+    ]
+
+    result = w.get_strokes_by_author("llm")
+
+    assert len(result) == 1
+    assert result[0]["author"] == "llm"
+
+
+def test_get_strokes_by_author_empty():
+    """get_strokes_by_author returns empty list when no strokes exist."""
+    w = DrawingWidget("canvas-meta-4")
+
+    result = w.get_strokes_by_author("user")
+
+    assert result == []

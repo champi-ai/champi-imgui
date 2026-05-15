@@ -353,3 +353,314 @@ class TestDrawingAddText:
 
         assert result["success"] is False
         assert "not found" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# drawing_add_llm_stroke
+# ---------------------------------------------------------------------------
+
+
+class TestDrawingAddLlmStroke:
+    def test_drawing_add_llm_stroke_success(self, cid):
+        """drawing_add_llm_stroke appends a stroke with author='llm'."""
+        widget = _make_canvas_with_drawing(cid)
+
+        result = server.drawing_add_llm_stroke.fn(
+            cid,
+            "draw1",
+            points=[[10.0, 20.0], [30.0, 40.0], [50.0, 60.0]],
+        )
+
+        assert result["success"] is True
+        strokes = widget.state.properties["strokes"]
+        assert len(strokes) == 1
+        s = strokes[0]
+        assert s["author"] == "llm"
+        assert s["tool"] == "brush"
+        assert s["points"] == [(10.0, 20.0), (30.0, 40.0), (50.0, 60.0)]
+        assert result["data"]["stroke_count"] == 1
+
+    def test_drawing_add_llm_stroke_default_color(self, cid):
+        """drawing_add_llm_stroke uses LLM blue when color is not specified."""
+        from champi_imgui.widgets.drawing import AUTHOR_COLORS
+
+        widget = _make_canvas_with_drawing(cid)
+
+        server.drawing_add_llm_stroke.fn(cid, "draw1", points=[[0.0, 0.0], [1.0, 1.0]])
+
+        color = widget.state.properties["strokes"][0]["color"]
+        assert color == AUTHOR_COLORS["llm"]
+
+    def test_drawing_add_llm_stroke_custom_color(self, cid):
+        """drawing_add_llm_stroke stores the provided color."""
+        widget = _make_canvas_with_drawing(cid)
+
+        server.drawing_add_llm_stroke.fn(
+            cid,
+            "draw1",
+            points=[[0.0, 0.0], [1.0, 1.0]],
+            color=[1.0, 0.0, 0.0, 1.0],
+        )
+
+        color = widget.state.properties["strokes"][0]["color"]
+        assert color == (1.0, 0.0, 0.0, 1.0)
+
+    def test_drawing_add_llm_stroke_missing_canvas(self):
+        """drawing_add_llm_stroke returns error when canvas does not exist."""
+        result = server.drawing_add_llm_stroke.fn(
+            "missing", "draw1", points=[[0.0, 0.0], [1.0, 1.0]]
+        )
+
+        assert result["success"] is False
+        assert "not found" in result["error"]
+
+    def test_drawing_add_llm_stroke_missing_widget(self, cid):
+        """drawing_add_llm_stroke returns error when widget does not exist."""
+        server.create_canvas.fn(cid, auto_start=False)
+
+        result = server.drawing_add_llm_stroke.fn(
+            cid, "nonexistent", points=[[0.0, 0.0], [1.0, 1.0]]
+        )
+
+        assert result["success"] is False
+        assert "not found" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# drawing_export_strokes / drawing_import_strokes
+# ---------------------------------------------------------------------------
+
+
+class TestDrawingExportImport:
+    def test_export_returns_strokes(self, cid):
+        """drawing_export_strokes includes the strokes list."""
+        widget = _make_canvas_with_drawing(cid)
+        stroke = [(0.0, 0.0), (5.0, 5.0)]
+        widget.state.properties["strokes"] = [stroke]
+
+        result = server.drawing_export_strokes.fn(cid, "draw1")
+
+        assert result["success"] is True
+        assert result["data"]["strokes"] == [stroke]
+
+    def test_export_includes_shapes_by_default(self, cid):
+        """drawing_export_strokes includes shapes when include_shapes=True."""
+        widget = _make_canvas_with_drawing(cid)
+        widget.add_shape("rect", x1=0.0, y1=0.0, x2=10.0, y2=10.0)
+
+        result = server.drawing_export_strokes.fn(cid, "draw1")
+
+        assert result["success"] is True
+        assert "shapes" in result["data"]
+        assert len(result["data"]["shapes"]) == 1
+
+    def test_export_excludes_shapes_when_flag_false(self, cid):
+        """drawing_export_strokes omits shapes when include_shapes=False."""
+        widget = _make_canvas_with_drawing(cid)
+        widget.add_shape("rect", x1=0.0, y1=0.0, x2=10.0, y2=10.0)
+
+        result = server.drawing_export_strokes.fn(cid, "draw1", include_shapes=False)
+
+        assert result["success"] is True
+        assert "shapes" not in result["data"]
+
+    def test_import_replaces_strokes(self, cid):
+        """drawing_import_strokes replaces existing strokes when merge=False."""
+        widget = _make_canvas_with_drawing(cid)
+        widget.state.properties["strokes"] = [[(0.0, 0.0), (1.0, 1.0)]]
+
+        new_stroke = [(2.0, 2.0), (3.0, 3.0)]
+        result = server.drawing_import_strokes.fn(cid, "draw1", strokes=[new_stroke])
+
+        assert result["success"] is True
+        assert widget.state.properties["strokes"] == [new_stroke]
+
+    def test_import_merges_strokes(self, cid):
+        """drawing_import_strokes appends strokes when merge=True."""
+        widget = _make_canvas_with_drawing(cid)
+        old_stroke = [(0.0, 0.0), (1.0, 1.0)]
+        widget.state.properties["strokes"] = [old_stroke]
+
+        new_stroke = [(2.0, 2.0), (3.0, 3.0)]
+        result = server.drawing_import_strokes.fn(
+            cid, "draw1", strokes=[new_stroke], merge=True
+        )
+
+        assert result["success"] is True
+        assert widget.state.properties["strokes"] == [old_stroke, new_stroke]
+
+    def test_import_shapes(self, cid):
+        """drawing_import_strokes replaces shapes list when merge=False."""
+        widget = _make_canvas_with_drawing(cid)
+        shape = {"type": "rect", "x1": 0.0, "y1": 0.0, "x2": 10.0, "y2": 10.0}
+        result = server.drawing_import_strokes.fn(cid, "draw1", shapes=[shape])
+
+        assert result["success"] is True
+        assert widget.state.properties["shapes"] == [shape]
+
+    def test_export_import_roundtrip(self, cid):
+        """Exported data can be re-imported to reproduce the original state."""
+        widget = _make_canvas_with_drawing(cid)
+        stroke = [(1.0, 2.0), (3.0, 4.0)]
+        widget.state.properties["strokes"] = [stroke]
+        widget.add_shape("circle", cx=5.0, cy=5.0, radius=3.0)
+        widget.add_annotation(1.0, 1.0, "note")
+
+        export_result = server.drawing_export_strokes.fn(cid, "draw1")
+        assert export_result["success"] is True
+        exported = export_result["data"]
+
+        # Clear the widget then re-import
+        widget.clear()
+        import_result = server.drawing_import_strokes.fn(
+            cid,
+            "draw1",
+            strokes=exported["strokes"],
+            shapes=exported["shapes"],
+            annotations=exported["annotations"],
+        )
+        assert import_result["success"] is True
+        assert widget.state.properties["strokes"] == [stroke]
+        assert len(widget.state.properties["shapes"]) == 1
+        assert len(widget.state.properties["annotations"]) == 1
+
+    def test_export_missing_canvas(self):
+        """drawing_export_strokes returns error when canvas does not exist."""
+        result = server.drawing_export_strokes.fn("missing", "draw1")
+
+        assert result["success"] is False
+        assert "not found" in result["error"]
+
+    def test_import_missing_canvas(self):
+        """drawing_import_strokes returns error when canvas does not exist."""
+        result = server.drawing_import_strokes.fn("missing", "draw1", strokes=[])
+
+        assert result["success"] is False
+        assert "not found" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# TestExportImportWithMetadata
+# ---------------------------------------------------------------------------
+
+
+class TestExportImportWithMetadata:
+    def test_export_preserves_stroke_author(self, cid):
+        """Exported strokes retain their author field."""
+        widget = _make_canvas_with_drawing(cid)
+        stroke = {
+            "points": [(0.0, 0.0), (1.0, 1.0)],
+            "author": "user",
+            "timestamp": 1000.0,
+            "tool": "brush",
+            "color": (1.0, 0.0, 0.0, 1.0),
+            "brush_size": 5.0,
+            "brush_style": "solid",
+        }
+        widget.state.properties["strokes"] = [stroke]
+
+        result = server.drawing_export_strokes.fn(cid, "draw1")
+
+        assert result["success"] is True
+        exported_stroke = result["data"]["strokes"][0]
+        assert exported_stroke["author"] == "user"
+
+    def test_export_preserves_stroke_timestamp(self, cid):
+        """Exported strokes retain their timestamp field."""
+        widget = _make_canvas_with_drawing(cid)
+        fixed_ts = 1_700_000_000.0
+        stroke = {
+            "points": [(0.0, 0.0), (1.0, 1.0)],
+            "author": "llm",
+            "timestamp": fixed_ts,
+            "tool": "brush",
+            "color": (0.0, 0.5, 1.0, 1.0),
+            "brush_size": 3.0,
+            "brush_style": "solid",
+        }
+        widget.state.properties["strokes"] = [stroke]
+
+        result = server.drawing_export_strokes.fn(cid, "draw1")
+
+        assert result["success"] is True
+        assert result["data"]["strokes"][0]["timestamp"] == fixed_ts
+
+    def test_import_roundtrip_preserves_metadata(self, cid):
+        """Export then import keeps author, timestamp, tool intact."""
+        widget = _make_canvas_with_drawing(cid)
+        fixed_ts = 1_700_000_000.0
+        original_stroke = {
+            "points": [(5.0, 10.0), (15.0, 20.0)],
+            "author": "llm",
+            "timestamp": fixed_ts,
+            "tool": "brush",
+            "color": (0.0, 0.5, 1.0, 1.0),
+            "brush_size": 3.0,
+            "brush_style": "dashed",
+        }
+        widget.state.properties["strokes"] = [original_stroke]
+
+        export_result = server.drawing_export_strokes.fn(cid, "draw1")
+        assert export_result["success"] is True
+
+        widget.clear()
+        import_result = server.drawing_import_strokes.fn(
+            cid, "draw1", strokes=export_result["data"]["strokes"]
+        )
+
+        assert import_result["success"] is True
+        restored = widget.state.properties["strokes"][0]
+        assert restored["author"] == "llm"
+        assert restored["timestamp"] == fixed_ts
+        assert restored["tool"] == "brush"
+        assert restored["brush_style"] == "dashed"
+
+    def test_llm_stroke_author_preserved_in_export(self, cid):
+        """A stroke added via drawing_add_llm_stroke has author=llm in export."""
+        _make_canvas_with_drawing(cid)
+
+        server.drawing_add_llm_stroke.fn(
+            cid, "draw1", points=[[0.0, 0.0], [10.0, 10.0]]
+        )
+
+        result = server.drawing_export_strokes.fn(cid, "draw1")
+
+        assert result["success"] is True
+        strokes = result["data"]["strokes"]
+        assert len(strokes) == 1
+        assert strokes[0]["author"] == "llm"
+
+    def test_import_merge_keeps_existing_author(self, cid):
+        """Merging import does not overwrite existing stroke metadata."""
+        widget = _make_canvas_with_drawing(cid)
+        existing_stroke = {
+            "points": [(0.0, 0.0), (1.0, 1.0)],
+            "author": "user",
+            "timestamp": 999.0,
+            "tool": "brush",
+            "color": (1.0, 0.0, 0.0, 1.0),
+            "brush_size": 5.0,
+            "brush_style": "solid",
+        }
+        widget.state.properties["strokes"] = [existing_stroke]
+
+        incoming_stroke = {
+            "points": [(2.0, 2.0), (3.0, 3.0)],
+            "author": "llm",
+            "timestamp": 1234.0,
+            "tool": "brush",
+            "color": (0.0, 0.5, 1.0, 1.0),
+            "brush_size": 3.0,
+            "brush_style": "solid",
+        }
+        result = server.drawing_import_strokes.fn(
+            cid, "draw1", strokes=[incoming_stroke], merge=True
+        )
+
+        assert result["success"] is True
+        strokes = widget.state.properties["strokes"]
+        assert len(strokes) == 2
+        assert strokes[0]["author"] == "user"
+        assert strokes[0]["timestamp"] == 999.0
+        assert strokes[1]["author"] == "llm"
+        assert strokes[1]["timestamp"] == 1234.0

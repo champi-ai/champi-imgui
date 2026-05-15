@@ -7,11 +7,17 @@ This module provides widgets for freehand drawing and whiteboard interaction:
 """
 
 import math
+import time
 from typing import Any
 
 from imgui_bundle import imgui
 
 from champi_imgui.core.widget import Widget
+
+AUTHOR_COLORS: dict[str, tuple[float, float, float, float]] = {
+    "user": (0.1, 0.1, 0.1, 1.0),
+    "llm": (0.0, 0.5, 1.0, 1.0),
+}
 
 
 class DrawingWidget(Widget):
@@ -73,9 +79,7 @@ class DrawingWidget(Widget):
         canvas_size: tuple[float, float] = self.state.properties.get(
             "size", (800.0, 600.0)
         )
-        strokes: list[list[tuple[float, float]]] = self.state.properties.get(
-            "strokes", []
-        )
+        strokes: list[dict[str, Any]] = self.state.properties.get("strokes", [])
         current_stroke: list[tuple[float, float]] = self.state.properties.get(
             "current_stroke", []
         )
@@ -103,9 +107,15 @@ class DrawingWidget(Widget):
 
         # Replay all completed strokes
         for stroke in strokes:
-            if len(stroke) >= 2:
+            points = stroke["points"]
+            if len(points) >= 2:
                 self._draw_stroke(
-                    draw_list, stroke, draw_color, brush_size, brush_style, canvas_min
+                    draw_list,
+                    points,
+                    stroke["color"],
+                    stroke["brush_size"],
+                    stroke["brush_style"],
+                    canvas_min,
                 )
 
         # Draw in-progress stroke
@@ -137,13 +147,33 @@ class DrawingWidget(Widget):
                 current_stroke.append((rel_x, rel_y))
                 self.state.properties["current_stroke"] = current_stroke
             elif imgui.is_mouse_released(0) and current_stroke:
-                strokes.append(list(current_stroke))
+                strokes.append(
+                    {
+                        "points": list(current_stroke),
+                        "author": "user",
+                        "timestamp": time.time(),
+                        "tool": "eraser" if is_eraser else "brush",
+                        "color": draw_color,
+                        "brush_size": brush_size,
+                        "brush_style": brush_style,
+                    }
+                )
                 self.state.properties["strokes"] = strokes
                 self.state.properties["current_stroke"] = []
                 self.state.properties["redo_stack"] = []
         elif imgui.is_mouse_released(0) and current_stroke:
             # Mouse released outside canvas — commit the in-progress stroke
-            strokes.append(list(current_stroke))
+            strokes.append(
+                {
+                    "points": list(current_stroke),
+                    "author": "user",
+                    "timestamp": time.time(),
+                    "tool": "eraser" if is_eraser else "brush",
+                    "color": draw_color,
+                    "brush_size": brush_size,
+                    "brush_style": brush_style,
+                }
+            )
             self.state.properties["strokes"] = strokes
             self.state.properties["current_stroke"] = []
             self.state.properties["redo_stack"] = []
@@ -351,11 +381,9 @@ class DrawingWidget(Widget):
 
     def undo(self) -> None:
         """Remove the last completed stroke and push it onto the redo stack."""
-        strokes: list[list[tuple[float, float]]] = self.state.properties.get(
-            "strokes", []
-        )
+        strokes: list[dict[str, Any]] = self.state.properties.get("strokes", [])
         if strokes:
-            redo_stack: list[list[tuple[float, float]]] = self.state.properties.get(
+            redo_stack: list[dict[str, Any]] = self.state.properties.get(
                 "redo_stack", []
             )
             redo_stack.append(strokes.pop())
@@ -364,16 +392,27 @@ class DrawingWidget(Widget):
 
     def redo(self) -> None:
         """Restore the last undone stroke from the redo stack."""
-        redo_stack: list[list[tuple[float, float]]] = self.state.properties.get(
-            "redo_stack", []
-        )
+        redo_stack: list[dict[str, Any]] = self.state.properties.get("redo_stack", [])
         if redo_stack:
-            strokes: list[list[tuple[float, float]]] = self.state.properties.get(
-                "strokes", []
-            )
+            strokes: list[dict[str, Any]] = self.state.properties.get("strokes", [])
             strokes.append(redo_stack.pop())
             self.state.properties["strokes"] = strokes
             self.state.properties["redo_stack"] = redo_stack
+
+    def get_strokes_by_author(self, author: str) -> list[dict[str, Any]]:
+        """Return all strokes drawn by the given author.
+
+        Args:
+            author: Author identifier, e.g. "user" or "llm"
+
+        Returns:
+            List of stroke dicts whose "author" field matches the given value.
+        """
+        return [
+            s
+            for s in self.state.properties.get("strokes", [])
+            if s.get("author") == author
+        ]
 
 
 class BrushWidget(Widget):
