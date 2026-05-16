@@ -3417,6 +3417,7 @@ def drawing_add_shape(
                 x2=x2,
                 y2=y2,
             )
+        canvas._wake_render()
         return {"success": True, "data": {"widget_id": widget_id}}
     except Exception as e:
         logger.error(f"Error adding shape to drawing widget '{widget_id}': {e}")
@@ -3465,6 +3466,7 @@ def drawing_add_text(
             tuple(color) if color else (1.0, 1.0, 1.0, 1.0)  # type: ignore[assignment]
         )
         widget.add_annotation(x, y, text, color_tuple, font_size)
+        canvas._wake_render()
         return {"success": True, "data": {"widget_id": widget_id}}
     except Exception as e:
         logger.error(f"Error adding text to drawing widget '{widget_id}': {e}")
