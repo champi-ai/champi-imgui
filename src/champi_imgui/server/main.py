@@ -3758,3 +3758,41 @@ def get_event_subscriptions() -> dict[str, Any]:
     except Exception as e:
         logger.error(f"Error retrieving event subscriptions: {e}")
         return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def screenshot_canvas(
+    canvas_id: str,
+    filepath: str,
+    region: list[int] | None = None,
+) -> dict[str, Any]:
+    """Capture the rendered canvas window as a PNG file.
+
+    Takes a pixel-level screenshot of the canvas window and saves it to disk.
+    Optionally crop to a sub-region [x, y, width, height].
+
+    Args:
+        canvas_id: Target canvas identifier
+        filepath: Destination PNG file path (e.g. "/tmp/canvas.png")
+        region: Optional [x, y, width, height] crop region in pixels
+
+    Returns:
+        Success status with filepath, width, and height of saved image
+    """
+    try:
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if not canvas:
+            return {"success": False, "error": f"Canvas {canvas_id} not found"}
+        canvas_manager.ensure_canvas_running(canvas_id)
+        result = canvas.request_screenshot(filepath, region=region)
+        if "error" in result:
+            return {"success": False, "error": result["error"]}
+        return {"success": True, "filepath": filepath, **result}
+    except TimeoutError:
+        return {
+            "success": False,
+            "error": "Screenshot timed out — canvas may not be rendering",
+        }
+    except Exception as e:
+        logger.error(f"Error taking screenshot of '{canvas_id}': {e}")
+        return {"success": False, "error": str(e)}
