@@ -1075,6 +1075,24 @@ class TestShapeValidation:
                 "cy": 25.0,
                 "radius": 10.0,
             },
+            {
+                "type": "arrow",
+                "color": [0.0, 0.0, 1.0, 1.0],
+                "thickness": 2.0,
+                "x1": 0.0,
+                "y1": 0.0,
+                "x2": 100.0,
+                "y2": 100.0,
+            },
+            {
+                "type": "line",
+                "color": [1.0, 1.0, 0.0, 1.0],
+                "thickness": 1.5,
+                "x1": 5.0,
+                "y1": 5.0,
+                "x2": 80.0,
+                "y2": 80.0,
+            },
         ]
 
         result = server.drawing_import_strokes.fn(cid, "draw1", shapes=shapes)

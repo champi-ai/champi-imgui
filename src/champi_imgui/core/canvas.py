@@ -29,6 +29,15 @@ class _ScreenshotRequest(TypedDict, total=False):
     result: dict[str, Any]
 
 
+class _MeasureTextRequest(TypedDict, total=False):
+    """Internal text-measurement request passed between threads."""
+
+    text: str
+    font_size: int
+    done: threading.Event
+    result: dict[str, Any]
+
+
 class Canvas:
     """Canvas window with event-driven rendering.
 
@@ -56,6 +65,9 @@ class Canvas:
 
         # Screenshot request: set by request_screenshot(), consumed in render thread
         self._screenshot_request: _ScreenshotRequest | None = None
+
+        # Text-measurement request: set by request_measure_text(), consumed in render thread
+        self._measure_text_request: _MeasureTextRequest | None = None
 
         # Create shared memory regions (Canvas is the creator)
         self.shm_manager.create_regions()
@@ -220,6 +232,7 @@ class Canvas:
 
         imgui.end()
         self._handle_screenshot()
+        self._handle_measure_text()
 
     def _handle_screenshot(self) -> None:
         """Capture the canvas window and write a PNG file if requested.
@@ -366,6 +379,72 @@ class Canvas:
             self._screenshot_request = None
             raise TimeoutError(
                 f"Screenshot of canvas '{self.state.canvas_id}' timed out after {timeout}s"
+            )
+
+        return req.get("result", {"error": "No result produced"})
+
+    def _handle_measure_text(self) -> None:
+        """Measure text on the render thread if a request is pending.
+
+        Must be called from the render thread after ImGui frame setup so that
+        the font atlas is active.
+        """
+        req = self._measure_text_request
+        if req is None:
+            return
+        self._measure_text_request = None
+        try:
+            text = req["text"]
+            font_size = req["font_size"]
+
+            io = imgui.get_io()
+            fonts = io.fonts.fonts
+            best_font = None
+            if fonts:
+                best_font = min(fonts, key=lambda f: abs(f.legacy_size - font_size))
+
+            if best_font is not None:
+                imgui.push_font(best_font, float(font_size))
+                size = imgui.calc_text_size(text)
+                imgui.pop_font()
+            else:
+                size = imgui.calc_text_size(text)
+
+            req["result"] = {"width": int(size.x), "height": int(size.y)}
+        except Exception as e:
+            logger.error(f"measure_text failed: {e}")
+            req["result"] = {"error": str(e)}
+        finally:
+            req["done"].set()
+
+    def request_measure_text(
+        self,
+        text: str,
+        font_size: int,
+        timeout: float = 5.0,
+    ) -> dict[str, Any]:
+        """Measure rendered text dimensions on the render thread (thread-safe).
+
+        Args:
+            text: The string to measure.
+            font_size: Desired font size; the closest loaded font is used.
+            timeout: Seconds to wait for the render thread to respond.
+
+        Returns:
+            ``{"width": int, "height": int}`` or ``{"error": <message>}`` on failure.
+
+        Raises:
+            TimeoutError: If the render thread does not respond within *timeout*.
+        """
+        done = threading.Event()
+        req: _MeasureTextRequest = {"text": text, "font_size": font_size, "done": done}
+        self._measure_text_request = req
+        self._wake_render()
+
+        if not done.wait(timeout=timeout):
+            self._measure_text_request = None
+            raise TimeoutError(
+                f"measure_text on canvas '{self.state.canvas_id}' timed out after {timeout}s"
             )
 
         return req.get("result", {"error": "No result produced"})

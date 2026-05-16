@@ -3865,3 +3865,52 @@ def screenshot_canvas(
     except Exception as e:
         logger.error(f"Error taking screenshot of '{canvas_id}': {e}")
         return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def measure_text(
+    canvas_id: str,
+    widget_id: str,
+    text: str,
+    font_size: int,
+) -> dict[str, Any]:
+    """Measure the rendered pixel dimensions of a text string on the canvas.
+
+    Dispatches ``imgui.calc_text_size`` to the render thread so that the active
+    font atlas is used for accurate measurement.  The MCP thread blocks until the
+    result arrives (5 s timeout).
+
+    Args:
+        canvas_id: Target canvas identifier.
+        widget_id: Identifier reserved for future per-widget font context.
+        text: The string whose rendered size should be measured.
+        font_size: Desired font size in pixels; the closest loaded font is used.
+
+    Returns:
+        ``{"success": True, "data": {"width": int, "height": int}}`` on success,
+        or ``{"success": False, "error": <message>}`` on failure.
+    """
+    try:
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if not canvas:
+            return {"success": False, "error": f"Canvas {canvas_id} not found"}
+
+        if not canvas._running:
+            return {"success": False, "error": "Canvas not running"}
+
+        result = canvas.request_measure_text(text, font_size)
+        if "error" in result:
+            return {"success": False, "error": result["error"]}
+
+        return {
+            "success": True,
+            "data": {"width": result["width"], "height": result["height"]},
+        }
+    except TimeoutError:
+        return {
+            "success": False,
+            "error": "measure_text timed out — canvas may not be rendering",
+        }
+    except Exception as e:
+        logger.error(f"Error measuring text on canvas '{canvas_id}': {e}")
+        return {"success": False, "error": str(e)}
