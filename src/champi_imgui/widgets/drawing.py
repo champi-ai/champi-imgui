@@ -11,6 +11,7 @@ import time
 from typing import Any
 
 from imgui_bundle import imgui
+from loguru import logger
 
 from champi_imgui.core.widget import Widget
 
@@ -207,10 +208,29 @@ class DrawingWidget(Widget):
         if brush_style == "dots":
             for i in range(0, len(pts), 3):
                 draw_list.add_circle_filled(pts[i], brush_size * 0.5, color_u32)
+        elif brush_style == "dashed":
+            dash_len = brush_size * 4
+            gap_len = brush_size * 2
+            for i in range(len(pts) - 1):
+                p1, p2 = pts[i], pts[i + 1]
+                dx = p2.x - p1.x
+                dy = p2.y - p1.y
+                seg_len = (dx * dx + dy * dy) ** 0.5
+                if seg_len == 0:
+                    continue
+                ux, uy = dx / seg_len, dy / seg_len
+                t = 0.0
+                draw = True
+                while t < seg_len:
+                    t_end = min(t + (dash_len if draw else gap_len), seg_len)
+                    if draw:
+                        a = imgui.ImVec2(p1.x + ux * t, p1.y + uy * t)
+                        b = imgui.ImVec2(p1.x + ux * t_end, p1.y + uy * t_end)
+                        draw_list.add_line(a, b, color_u32, brush_size)
+                    t = t_end
+                    draw = not draw
         else:
-            # solid: every segment; dashed: every other segment
-            step = 2 if brush_style == "dashed" else 1
-            for i in range(0, len(pts) - 1, step):
+            for i in range(len(pts) - 1):
                 draw_list.add_line(pts[i], pts[i + 1], color_u32, brush_size)
 
     def _draw_shape(  # pragma: no cover
@@ -226,52 +246,58 @@ class DrawingWidget(Widget):
             shape: Shape dict with type, color, thickness, and coordinates
             canvas_min: Canvas origin in screen coordinates
         """
-        color_u32 = imgui.color_convert_float4_to_u32(imgui.ImVec4(*shape["color"]))
-        t = shape.get("thickness", 2.0)
-        ox, oy = canvas_min.x, canvas_min.y
-        stype = shape["type"]
+        try:
+            c = shape["color"]
+            color_u32 = imgui.color_convert_float4_to_u32(
+                imgui.ImVec4(c[0], c[1], c[2], c[3])
+            )
+            t = shape.get("thickness", 2.0)
+            ox, oy = canvas_min.x, canvas_min.y
+            stype = shape["type"]
 
-        if stype == "rect":
-            draw_list.add_rect(
-                imgui.ImVec2(ox + shape["x1"], oy + shape["y1"]),
-                imgui.ImVec2(ox + shape["x2"], oy + shape["y2"]),
-                color_u32,
-                0.0,
-                0,
-                t,
-            )
-        elif stype == "circle":
-            draw_list.add_circle(
-                imgui.ImVec2(ox + shape["cx"], oy + shape["cy"]),
-                shape["radius"],
-                color_u32,
-                0,
-                t,
-            )
-        elif stype in ("line", "arrow"):
-            draw_list.add_line(
-                imgui.ImVec2(ox + shape["x1"], oy + shape["y1"]),
-                imgui.ImVec2(ox + shape["x2"], oy + shape["y2"]),
-                color_u32,
-                t,
-            )
-            if stype == "arrow":
-                dx = shape["x2"] - shape["x1"]
-                dy = shape["y2"] - shape["y1"]
-                length = math.hypot(dx, dy)
-                if length > 0:
-                    ux, uy = dx / length, dy / length
-                    head = 12.0
-                    p = imgui.ImVec2(ox + shape["x2"], oy + shape["y2"])
-                    p1 = imgui.ImVec2(
-                        p.x - ux * head + uy * head * 0.4,
-                        p.y - uy * head - ux * head * 0.4,
-                    )
-                    p2 = imgui.ImVec2(
-                        p.x - ux * head - uy * head * 0.4,
-                        p.y - uy * head + ux * head * 0.4,
-                    )
-                    draw_list.add_triangle_filled(p, p1, p2, color_u32)
+            if stype == "rect":
+                draw_list.add_rect(
+                    imgui.ImVec2(ox + shape["x1"], oy + shape["y1"]),
+                    imgui.ImVec2(ox + shape["x2"], oy + shape["y2"]),
+                    color_u32,
+                    0.0,
+                    0,
+                    t,
+                )
+            elif stype == "circle":
+                draw_list.add_circle(
+                    imgui.ImVec2(ox + shape["cx"], oy + shape["cy"]),
+                    shape["radius"],
+                    color_u32,
+                    0,
+                    t,
+                )
+            elif stype in ("line", "arrow"):
+                draw_list.add_line(
+                    imgui.ImVec2(ox + shape["x1"], oy + shape["y1"]),
+                    imgui.ImVec2(ox + shape["x2"], oy + shape["y2"]),
+                    color_u32,
+                    t,
+                )
+                if stype == "arrow":
+                    dx = shape["x2"] - shape["x1"]
+                    dy = shape["y2"] - shape["y1"]
+                    length = math.hypot(dx, dy)
+                    if length > 0:
+                        ux, uy = dx / length, dy / length
+                        head = 12.0
+                        p = imgui.ImVec2(ox + shape["x2"], oy + shape["y2"])
+                        p1 = imgui.ImVec2(
+                            p.x - ux * head + uy * head * 0.4,
+                            p.y - uy * head - ux * head * 0.4,
+                        )
+                        p2 = imgui.ImVec2(
+                            p.x - ux * head - uy * head * 0.4,
+                            p.y - uy * head + ux * head * 0.4,
+                        )
+                        draw_list.add_triangle_filled(p, p1, p2, color_u32)
+        except Exception as exc:
+            logger.error(f"_draw_shape failed for shape {shape.get('type')!r}: {exc}")
 
     def _draw_annotations(  # pragma: no cover
         self,
@@ -286,17 +312,21 @@ class DrawingWidget(Widget):
         """
         for annotation in self.state.properties.get("annotations", []):
             if annotation.get("type") == "text":
-                color_u32 = imgui.color_convert_float4_to_u32(
-                    imgui.ImVec4(*annotation["color"])
-                )
-                draw_list.add_text(
-                    imgui.ImVec2(
-                        canvas_min.x + annotation["x"],
-                        canvas_min.y + annotation["y"],
-                    ),
-                    color_u32,
-                    annotation["text"],
-                )
+                try:
+                    c = annotation["color"]
+                    color_u32 = imgui.color_convert_float4_to_u32(
+                        imgui.ImVec4(c[0], c[1], c[2], c[3])
+                    )
+                    draw_list.add_text(
+                        imgui.ImVec2(
+                            canvas_min.x + annotation["x"],
+                            canvas_min.y + annotation["y"],
+                        ),
+                        color_u32,
+                        annotation["text"],
+                    )
+                except Exception as exc:
+                    logger.error(f"_draw_annotations failed for annotation: {exc}")
 
     def add_shape(
         self,
