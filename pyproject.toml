@@ -152,6 +152,8 @@ module = [
     "_pytest.*",
     "mss.*",
     "OpenGL.*",
+    "gi.*",
+    "glfw.*",
 ]
 ignore_missing_imports = true
 
