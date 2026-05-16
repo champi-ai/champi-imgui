@@ -41,6 +41,17 @@ def test_screenshot_canvas_tool_exists():
     assert callable(server.screenshot_canvas.fn)
 
 
+def test_screenshot_no_opengl_import():
+    """canvas.py must not import from OpenGL — we use mss instead."""
+    import inspect
+
+    from champi_imgui.core import canvas
+
+    source = inspect.getsource(canvas)
+    assert "from OpenGL" not in source
+    assert "import OpenGL" not in source
+
+
 def test_screenshot_canvas_timeout(cid, monkeypatch):
     """Returns timeout error when render thread never processes the request."""
     server.canvas_manager.create_canvas(cid, auto_start=False)

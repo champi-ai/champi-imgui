@@ -194,28 +194,31 @@ class Canvas:
         self._handle_screenshot()
 
     def _handle_screenshot(self) -> None:
-        """Capture framebuffer pixels and write a PNG file if requested.
+        """Capture the canvas window and write a PNG file if requested.
 
-        Must be called from the render thread after all ImGui draw calls for
-        the frame are complete so the framebuffer contains the latest content.
+        Uses mss for cross-platform screen capture without requiring PyOpenGL.
+        Must be called from the render thread after all ImGui draw calls so the
+        window contents are fully rendered.
         """
         req = self._screenshot_request
         if req is None:
             return
         self._screenshot_request = None
         try:
-            import ctypes
-
-            from OpenGL import GL
+            import mss
             from PIL import Image
 
             wp = hello_imgui.get_runner_params()
             w, h = wp.app_window_params.window_geometry.size
 
-            buf = (ctypes.c_ubyte * (w * h * 3))()
-            GL.glReadPixels(0, 0, w, h, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, buf)
-            img: Image.Image = Image.frombuffer("RGB", (w, h), bytes(buf))
-            img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+            with mss.mss() as sct:
+                monitor = sct.monitors[1]
+                raw = sct.grab(monitor)
+                img: Image.Image = Image.frombytes(
+                    "RGB", raw.size, raw.bgra, "raw", "BGRX"
+                )
+
+            img = img.crop((0, 0, int(w), int(h)))
 
             region = req.get("region")
             if region:
@@ -227,6 +230,9 @@ class Canvas:
             req["result"] = {"width": img.width, "height": img.height}
         except Exception as e:
             logger.error(f"Screenshot failed: {e}")
+            import traceback
+
+            logger.error(traceback.format_exc())
             req["result"] = {"error": str(e)}
         finally:
             req["done"].set()
