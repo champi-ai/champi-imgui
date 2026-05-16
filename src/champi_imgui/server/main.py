@@ -3981,3 +3981,61 @@ def measure_text(
     except Exception as e:
         logger.error(f"Error measuring text on canvas '{canvas_id}': {e}")
         return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def get_canvas_info(canvas_id: str) -> dict[str, Any]:
+    """Return coordinate and display metadata for a canvas.
+
+    Provides the six values needed for accurate canvas-coordinate math:
+    drawable area in canvas units, screen position of the drawing widget
+    top-left corner, display framebuffer scale, and the X11 window ID.
+
+    Args:
+        canvas_id: Target canvas identifier.
+
+    Returns:
+        ``{"success": True, "data": {"width": int, "height": int,
+        "screen_offset_x": float, "screen_offset_y": float,
+        "pixel_scale": float, "window_id": str}}`` on success,
+        or ``{"success": False, "error": <message>}`` on failure.
+
+    Note:
+        ``screen_offset_x/y`` may not be meaningful on Wayland-native
+        (non-XWayland) sessions.  ``window_id`` is ``"none"`` in those cases.
+    """
+    try:
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if not canvas:
+            return {"success": False, "error": f"Canvas {canvas_id} not found"}
+
+        if not canvas._running:
+            return {"success": False, "error": "Canvas not running"}
+
+        w, h = canvas.state.size
+        win_id = canvas.get_window_id()
+        window_id_str = hex(win_id) if win_id is not None else "none"
+
+        info = canvas.request_canvas_info()
+        if "error" in info:
+            return {"success": False, "error": info["error"]}
+
+        return {
+            "success": True,
+            "data": {
+                "width": int(w),
+                "height": int(h),
+                "screen_offset_x": info["screen_offset_x"],
+                "screen_offset_y": info["screen_offset_y"],
+                "pixel_scale": info["pixel_scale"],
+                "window_id": window_id_str,
+            },
+        }
+    except TimeoutError:
+        return {
+            "success": False,
+            "error": "get_canvas_info timed out — canvas may not be rendering",
+        }
+    except Exception as e:
+        logger.error(f"Error getting canvas info for '{canvas_id}': {e}")
+        return {"success": False, "error": str(e)}
