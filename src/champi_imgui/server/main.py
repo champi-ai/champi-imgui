@@ -3787,6 +3787,190 @@ def update_stroke(
         return {"success": False, "error": str(e)}
 
 
+@mcp.tool()
+def update_annotation(
+    canvas_id: str,
+    widget_id: str,
+    index: int,
+    text: str | None = None,
+    x: float | None = None,
+    y: float | None = None,
+    color: list[float] | None = None,
+    font_size: float | None = None,
+) -> dict[str, Any]:
+    """Update a single text annotation in a DrawingWidget by index.
+
+    Performs a partial in-place update: only the fields that are not None
+    are written to the annotation. Passing all None is a safe no-op.
+
+    Args:
+        canvas_id: Target canvas identifier
+        widget_id: DrawingWidget identifier
+        index: Zero-based index of the annotation to update (must be non-negative)
+        text: Replacement text content
+        x: Replacement canvas-relative x position in pixels
+        y: Replacement canvas-relative y position in pixels
+        color: Replacement RGBA color as [r, g, b, a] (0.0-1.0)
+        font_size: Replacement font size in pixels
+
+    Returns:
+        ``{"success": True}`` on success, or
+        ``{"success": False, "error": <message>}`` on failure.
+    """
+    if index < 0:
+        return {"success": False, "error": "index must be non-negative"}
+
+    try:
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if not canvas:
+            return {"success": False, "error": f"Canvas {canvas_id} not found"}
+        widget = canvas.widget_registry.get(widget_id)
+        if not widget:
+            return {"success": False, "error": f"Widget {widget_id} not found"}
+
+        from champi_imgui.widgets.drawing import DrawingWidget
+
+        if not isinstance(widget, DrawingWidget):
+            return {
+                "success": False,
+                "error": f"Widget {widget_id} is not a DrawingWidget",
+            }
+
+        annotations: list[dict[str, Any]] = widget.state.properties.get(
+            "annotations", []
+        )
+        if index >= len(annotations):
+            return {
+                "success": False,
+                "error": f"index {index} out of range ({len(annotations)} annotations)",
+            }
+
+        annotation = annotations[index]
+        if text is not None:
+            annotation["text"] = text
+        if x is not None:
+            annotation["x"] = x
+        if y is not None:
+            annotation["y"] = y
+        if color is not None:
+            annotation["color"] = tuple(color)
+        if font_size is not None:
+            annotation["font_size"] = font_size
+
+        canvas._wake_render()
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Error updating annotation {index} on widget '{widget_id}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def update_shape(
+    canvas_id: str,
+    widget_id: str,
+    index: int,
+    color: list[float] | None = None,
+    thickness: float | None = None,
+    filled: bool | None = None,
+    x1: float | None = None,
+    y1: float | None = None,
+    x2: float | None = None,
+    y2: float | None = None,
+    cx: float | None = None,
+    cy: float | None = None,
+    radius: float | None = None,
+    rx: float | None = None,
+    ry: float | None = None,
+) -> dict[str, Any]:
+    """Update a single shape in a DrawingWidget by index.
+
+    Performs a partial in-place update: only the fields that are not None
+    are written to the shape. Passing all None is a safe no-op.  Shape type
+    cannot be changed — use ``drawing_clear`` and re-add the shape instead.
+
+    Args:
+        canvas_id: Target canvas identifier
+        widget_id: DrawingWidget identifier
+        index: Zero-based index of the shape to update (must be non-negative)
+        color: Replacement RGBA color as [r, g, b, a] (0.0-1.0)
+        thickness: Replacement line thickness in pixels
+        filled: Replacement fill flag (only honoured for rect/circle/ellipse)
+        x1: rect/line/arrow start x (canvas-relative pixels)
+        y1: rect/line/arrow start y (canvas-relative pixels)
+        x2: rect/line/arrow end x (canvas-relative pixels)
+        y2: rect/line/arrow end y (canvas-relative pixels)
+        cx: circle/ellipse center x (canvas-relative pixels)
+        cy: circle/ellipse center y (canvas-relative pixels)
+        radius: circle radius in pixels
+        rx: ellipse horizontal radius in pixels
+        ry: ellipse vertical radius in pixels
+
+    Returns:
+        ``{"success": True}`` on success, or
+        ``{"success": False, "error": <message>}`` on failure.
+    """
+    if index < 0:
+        return {"success": False, "error": "index must be non-negative"}
+
+    try:
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if not canvas:
+            return {"success": False, "error": f"Canvas {canvas_id} not found"}
+        widget = canvas.widget_registry.get(widget_id)
+        if not widget:
+            return {"success": False, "error": f"Widget {widget_id} not found"}
+
+        from champi_imgui.widgets.drawing import FILL_SUPPORTED_TYPES, DrawingWidget
+
+        if not isinstance(widget, DrawingWidget):
+            return {
+                "success": False,
+                "error": f"Widget {widget_id} is not a DrawingWidget",
+            }
+
+        shapes: list[dict[str, Any]] = widget.state.properties.get("shapes", [])
+        if index >= len(shapes):
+            return {
+                "success": False,
+                "error": f"index {index} out of range ({len(shapes)} shapes)",
+            }
+
+        shape = shapes[index]
+        if color is not None:
+            shape["color"] = tuple(color)
+        if thickness is not None:
+            shape["thickness"] = thickness
+        if filled is not None:
+            if filled and shape.get("type") not in FILL_SUPPORTED_TYPES:
+                return {
+                    "success": False,
+                    "error": (
+                        f"Shape type '{shape.get('type')}' does not support fill; "
+                        f"only {sorted(FILL_SUPPORTED_TYPES)} do"
+                    ),
+                }
+            shape["filled"] = filled
+        for key, val in [
+            ("x1", x1),
+            ("y1", y1),
+            ("x2", x2),
+            ("y2", y2),
+            ("cx", cx),
+            ("cy", cy),
+            ("radius", radius),
+            ("rx", rx),
+            ("ry", ry),
+        ]:
+            if val is not None:
+                shape[key] = val
+
+        canvas._wake_render()
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Error updating shape {index} on widget '{widget_id}': {e}")
+        return {"success": False, "error": str(e)}
+
+
 def _hex_to_rgba(hex_color: str) -> tuple[float, float, float, float]:
     """Convert hex color to RGBA tuple.
 
