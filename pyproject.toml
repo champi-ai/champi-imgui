@@ -35,6 +35,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "numpy>=2.3.4",
     "pillow>=10.0.0",
+    "mss>=9.0.0",
 ]
 
 [project.optional-dependencies]
@@ -149,7 +150,7 @@ module = [
     "champi_gen_ui.*",
     "pytest",
     "_pytest.*",
-    "OpenGL.*",
+    "mss.*",
 ]
 ignore_missing_imports = true
 
