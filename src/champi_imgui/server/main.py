@@ -3835,9 +3835,9 @@ def screenshot_canvas(
             return {"success": False, "error": f"Canvas {canvas_id} not found"}
         canvas_manager.ensure_canvas_running(canvas_id)
         result = canvas.request_screenshot(filepath, region=region)
-        if "error" in result:
-            return {"success": False, "error": result["error"]}
-        return {"success": True, "filepath": filepath, **result}
+        if result.get("success") is False:
+            return {"success": False, "error": result.get("error", "Unknown error")}
+        return {"success": True, "filepath": result.get("path", filepath)}
     except TimeoutError:
         return {
             "success": False,
