@@ -775,3 +775,127 @@ class TestDrawingWidgetImportRoundtrip:
         assert len(widget.state.properties.get("strokes", [])) == 1
         assert len(widget.state.properties.get("annotations", [])) == 1
         assert len(widget.state.properties.get("shapes", [])) == 1
+
+
+# ---------------------------------------------------------------------------
+# Shape validation: unknown type and filled on unsupported types
+# ---------------------------------------------------------------------------
+
+
+class TestShapeValidation:
+    @pytest.mark.parametrize("shape_type", ["unknown_blob", "triangle", "", "RECT"])
+    def test_add_shape_unknown_type_returns_error(self, cid, shape_type):
+        """drawing_add_shape returns a structured error for unknown shape types."""
+        _make_canvas_with_drawing(cid)
+
+        result = server.drawing_add_shape.fn(cid, "draw1", shape_type)
+
+        assert result["success"] is False
+        assert f"Unknown shape type: '{shape_type}'" in result["error"]
+
+    @pytest.mark.parametrize("shape_type", ["arrow", "line"])
+    def test_add_shape_filled_unsupported_returns_error(self, cid, shape_type):
+        """drawing_add_shape returns a structured error when filled=True is passed
+        for a shape type that does not support fill."""
+        _make_canvas_with_drawing(cid)
+
+        result = server.drawing_add_shape.fn(
+            cid, "draw1", shape_type, filled=True
+        )
+
+        assert result["success"] is False
+        assert "does not support fill" in result["error"]
+
+    @pytest.mark.parametrize("shape_type", ["rect", "circle"])
+    def test_add_shape_filled_supported_succeeds(self, cid, shape_type):
+        """drawing_add_shape accepts filled=True for rect and circle."""
+        widget = _make_canvas_with_drawing(cid)
+
+        if shape_type == "circle":
+            result = server.drawing_add_shape.fn(
+                cid, "draw1", shape_type, cx=50.0, cy=50.0, radius=20.0, filled=True
+            )
+        else:
+            result = server.drawing_add_shape.fn(
+                cid, "draw1", shape_type, x1=0.0, y1=0.0, x2=50.0, y2=50.0, filled=True
+            )
+
+        assert result["success"] is True
+        shapes = widget.state.properties["shapes"]
+        assert len(shapes) == 1
+        assert shapes[0]["filled"] is True
+
+    def test_add_shape_filled_defaults_to_false(self, cid):
+        """drawing_add_shape stores filled=False on the shape when not specified."""
+        widget = _make_canvas_with_drawing(cid)
+
+        server.drawing_add_shape.fn(cid, "draw1", "rect")
+
+        assert widget.state.properties["shapes"][0]["filled"] is False
+
+    @pytest.mark.parametrize("shape_type", ["unknown_blob", "triangle", "", "RECT"])
+    def test_import_strokes_unknown_shape_type_returns_error(self, cid, shape_type):
+        """drawing_import_strokes returns a structured error for unknown shape types."""
+        _make_canvas_with_drawing(cid)
+        shape = {
+            "type": shape_type,
+            "color": [0.0, 0.5, 1.0, 1.0],
+            "thickness": 2.0,
+            "x1": 0.0,
+            "y1": 0.0,
+            "x2": 10.0,
+            "y2": 10.0,
+        }
+
+        result = server.drawing_import_strokes.fn(cid, "draw1", shapes=[shape])
+
+        assert result["success"] is False
+        assert f"Unknown shape type: '{shape_type}'" in result["error"]
+
+    @pytest.mark.parametrize("shape_type", ["arrow", "line"])
+    def test_import_strokes_filled_unsupported_returns_error(self, cid, shape_type):
+        """drawing_import_strokes returns a structured error when a shape has
+        filled=True for a type that does not support fill."""
+        _make_canvas_with_drawing(cid)
+        shape = {
+            "type": shape_type,
+            "color": [0.0, 0.5, 1.0, 1.0],
+            "thickness": 2.0,
+            "filled": True,
+            "x1": 0.0,
+            "y1": 0.0,
+            "x2": 10.0,
+            "y2": 10.0,
+        }
+
+        result = server.drawing_import_strokes.fn(cid, "draw1", shapes=[shape])
+
+        assert result["success"] is False
+        assert "does not support fill" in result["error"]
+
+    def test_import_strokes_valid_shapes_succeed(self, cid):
+        """drawing_import_strokes accepts a list of valid shapes without errors."""
+        widget = _make_canvas_with_drawing(cid)
+        shapes = [
+            {"type": "rect", "color": [1.0, 0.0, 0.0, 1.0], "thickness": 2.0,
+             "x1": 0.0, "y1": 0.0, "x2": 50.0, "y2": 50.0},
+            {"type": "circle", "color": [0.0, 1.0, 0.0, 1.0], "thickness": 1.0,
+             "cx": 25.0, "cy": 25.0, "radius": 10.0},
+            {"type": "arrow", "color": [0.0, 0.0, 1.0, 1.0], "thickness": 2.0,
+             "x1": 0.0, "y1": 0.0, "x2": 100.0, "y2": 100.0},
+            {"type": "line", "color": [1.0, 1.0, 0.0, 1.0], "thickness": 1.5,
+             "x1": 5.0, "y1": 5.0, "x2": 80.0, "y2": 80.0},
+        ]
+
+        result = server.drawing_import_strokes.fn(cid, "draw1", shapes=shapes)
+
+        assert result["success"] is True
+        assert len(widget.state.properties["shapes"]) == 4
+
+    def test_import_strokes_no_shapes_arg_is_safe(self, cid):
+        """drawing_import_strokes with shapes=None does not raise."""
+        _make_canvas_with_drawing(cid)
+
+        result = server.drawing_import_strokes.fn(cid, "draw1", shapes=None)
+
+        assert result["success"] is True

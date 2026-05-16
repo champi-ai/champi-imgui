@@ -3361,6 +3361,7 @@ def drawing_add_shape(
     radius: float = 50.0,
     color: list[float] | None = None,
     thickness: float = 2.0,
+    filled: bool = False,
 ) -> dict[str, Any]:
     """Add a shape to a drawing widget.
 
@@ -3377,6 +3378,7 @@ def drawing_add_shape(
         radius: Radius for circle in pixels
         color: RGBA color as [r, g, b, a] with values 0.0-1.0 (default blue)
         thickness: Line thickness in pixels
+        filled: Whether the shape is filled (only supported for "rect" and "circle")
 
     Returns:
         Success status and widget identifier
@@ -3388,12 +3390,30 @@ def drawing_add_shape(
         widget = canvas.widget_registry.get(widget_id)
         if not widget:
             return {"success": False, "error": f"Widget {widget_id} not found"}
-        from champi_imgui.widgets.drawing import DrawingWidget
+        from champi_imgui.widgets.drawing import (
+            FILL_SUPPORTED_TYPES,
+            VALID_SHAPE_TYPES,
+            DrawingWidget,
+        )
 
         if not isinstance(widget, DrawingWidget):
             return {
                 "success": False,
                 "error": f"Widget {widget_id} is not a DrawingWidget",
+            }
+        if shape_type not in VALID_SHAPE_TYPES:
+            logger.warning(f"drawing_add_shape: unknown shape type '{shape_type}'")
+            return {"success": False, "error": f"Unknown shape type: '{shape_type}'"}
+        if filled and shape_type not in FILL_SUPPORTED_TYPES:
+            logger.warning(
+                f"drawing_add_shape: shape type '{shape_type}' does not support fill"
+            )
+            return {
+                "success": False,
+                "error": (
+                    f"Shape type '{shape_type}' does not support fill; "
+                    f"only {sorted(FILL_SUPPORTED_TYPES)} do"
+                ),
             }
         color_tuple: tuple[float, float, float, float] = (
             tuple(color) if color else (0.0, 0.5, 1.0, 1.0)  # type: ignore[assignment]
@@ -3403,6 +3423,7 @@ def drawing_add_shape(
                 shape_type,
                 color=color_tuple,
                 thickness=thickness,
+                filled=filled,
                 cx=cx,
                 cy=cy,
                 radius=radius,
@@ -3412,6 +3433,7 @@ def drawing_add_shape(
                 shape_type,
                 color=color_tuple,
                 thickness=thickness,
+                filled=filled,
                 x1=x1,
                 y1=y1,
                 x2=x2,
@@ -3602,7 +3624,8 @@ def drawing_import_strokes(
         canvas_id: Target canvas identifier
         widget_id: DrawingWidget identifier
         strokes: List of strokes to import (each stroke is a list of [x, y] points)
-        shapes: List of shape dicts to import
+        shapes: List of shape dicts to import; each must have a known "type" field
+            and may not set "filled": true for types that do not support fill
         annotations: List of annotation dicts to import
         merge: When False (default) replace existing data; when True append to it
 
@@ -3616,13 +3639,40 @@ def drawing_import_strokes(
         widget = canvas.widget_registry.get(widget_id)
         if not widget:
             return {"success": False, "error": f"Widget {widget_id} not found"}
-        from champi_imgui.widgets.drawing import DrawingWidget
+        from champi_imgui.widgets.drawing import (
+            FILL_SUPPORTED_TYPES,
+            VALID_SHAPE_TYPES,
+            DrawingWidget,
+        )
 
         if not isinstance(widget, DrawingWidget):
             return {
                 "success": False,
                 "error": f"Widget {widget_id} is not a DrawingWidget",
             }
+
+        if shapes is not None:
+            for shape in shapes:
+                stype = shape.get("type", "")
+                if stype not in VALID_SHAPE_TYPES:
+                    logger.warning(
+                        f"drawing_import_strokes: unknown shape type '{stype}'"
+                    )
+                    return {
+                        "success": False,
+                        "error": f"Unknown shape type: '{stype}'",
+                    }
+                if shape.get("filled", False) and stype not in FILL_SUPPORTED_TYPES:
+                    logger.warning(
+                        f"drawing_import_strokes: shape type '{stype}' does not support fill"
+                    )
+                    return {
+                        "success": False,
+                        "error": (
+                            f"Shape type '{stype}' does not support fill; "
+                            f"only {sorted(FILL_SUPPORTED_TYPES)} do"
+                        ),
+                    }
 
         def _apply() -> None:
             props = widget.state.properties
