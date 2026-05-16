@@ -3701,6 +3701,73 @@ def drawing_import_strokes(
         return {"success": False, "error": str(e)}
 
 
+@mcp.tool()
+def update_stroke(
+    canvas_id: str,
+    widget_id: str,
+    index: int,
+    points: list | None = None,
+    color: list[float] | None = None,
+    brush_size: float | None = None,
+) -> dict[str, Any]:
+    """Update a single stroke in a DrawingWidget by index.
+
+    Performs a partial in-place update: only the fields that are not None
+    are written to the stroke. Passing all None is a safe no-op.
+
+    Args:
+        canvas_id: Target canvas identifier
+        widget_id: DrawingWidget identifier
+        index: Zero-based index of the stroke to update (must be non-negative)
+        points: Replacement point list as [[x, y], ...] canvas-relative coords
+        color: Replacement RGBA color as [r, g, b, a] (0.0-1.0)
+        brush_size: Replacement brush thickness in pixels
+
+    Returns:
+        ``{"success": True}`` on success, or
+        ``{"success": False, "error": <message>}`` on failure.
+    """
+    if index < 0:
+        return {"success": False, "error": "index must be non-negative"}
+
+    try:
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if not canvas:
+            return {"success": False, "error": f"Canvas {canvas_id} not found"}
+        widget = canvas.widget_registry.get(widget_id)
+        if not widget:
+            return {"success": False, "error": f"Widget {widget_id} not found"}
+
+        from champi_imgui.widgets.drawing import DrawingWidget
+
+        if not isinstance(widget, DrawingWidget):
+            return {
+                "success": False,
+                "error": f"Widget {widget_id} is not a DrawingWidget",
+            }
+
+        strokes: list[dict[str, Any]] = widget.state.properties.get("strokes", [])
+        if index >= len(strokes):
+            return {
+                "success": False,
+                "error": f"index {index} out of range ({len(strokes)} strokes)",
+            }
+
+        stroke = strokes[index]
+        if points is not None:
+            stroke["points"] = points
+        if color is not None:
+            stroke["color"] = tuple(color)
+        if brush_size is not None:
+            stroke["brush_size"] = brush_size
+
+        canvas._wake_render()
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Error updating stroke {index} on widget '{widget_id}': {e}")
+        return {"success": False, "error": str(e)}
+
+
 def _hex_to_rgba(hex_color: str) -> tuple[float, float, float, float]:
     """Convert hex color to RGBA tuple.
 
