@@ -38,6 +38,13 @@ class _MeasureTextRequest(TypedDict, total=False):
     result: dict[str, Any]
 
 
+class _CanvasInfoRequest(TypedDict, total=False):
+    """Internal canvas-info request passed between threads."""
+
+    done: threading.Event
+    result: dict[str, Any]
+
+
 class Canvas:
     """Canvas window with event-driven rendering.
 
@@ -68,6 +75,9 @@ class Canvas:
 
         # Text-measurement request: set by request_measure_text(), consumed in render thread
         self._measure_text_request: _MeasureTextRequest | None = None
+
+        # Canvas-info request: set by request_canvas_info(), consumed in render thread
+        self._canvas_info_request: _CanvasInfoRequest | None = None
 
         # Create shared memory regions (Canvas is the creator)
         self.shm_manager.create_regions()
@@ -233,6 +243,7 @@ class Canvas:
         imgui.end()
         self._handle_screenshot()
         self._handle_measure_text()
+        self._handle_canvas_info()
 
     def _handle_screenshot(self) -> None:
         """Capture the canvas window and write a PNG file if requested.
@@ -445,6 +456,58 @@ class Canvas:
             self._measure_text_request = None
             raise TimeoutError(
                 f"measure_text on canvas '{self.state.canvas_id}' timed out after {timeout}s"
+            )
+
+        return req.get("result", {"error": "No result produced"})
+
+    def _handle_canvas_info(self) -> None:
+        """Collect canvas rendering info on the render thread if a request is pending."""
+        req = self._canvas_info_request
+        if req is None:
+            return
+        self._canvas_info_request = None
+        try:
+            io = imgui.get_io()
+            pixel_scale = io.display_framebuffer_scale.x
+
+            from champi_imgui.widgets.drawing import DrawingWidget
+
+            offset_x, offset_y = 0.0, 0.0
+            for widget in self.widget_registry.get_all().values():
+                if isinstance(widget, DrawingWidget):
+                    offset_x, offset_y = widget.canvas_screen_offset
+                    break
+
+            req["result"] = {
+                "screen_offset_x": offset_x,
+                "screen_offset_y": offset_y,
+                "pixel_scale": pixel_scale,
+            }
+        except Exception as e:
+            logger.error(f"canvas_info fetch failed: {e}")
+            req["result"] = {"error": str(e)}
+        finally:
+            req["done"].set()
+
+    def request_canvas_info(self, timeout: float = 5.0) -> dict[str, Any]:
+        """Fetch live canvas rendering info from the render thread (thread-safe).
+
+        Returns:
+            Dict with ``screen_offset_x``, ``screen_offset_y``, ``pixel_scale``,
+            or ``{"error": <message>}`` on failure.
+
+        Raises:
+            TimeoutError: If the render thread does not respond within *timeout*.
+        """
+        done = threading.Event()
+        req: _CanvasInfoRequest = {"done": done}
+        self._canvas_info_request = req
+        self._wake_render()
+
+        if not done.wait(timeout=timeout):
+            self._canvas_info_request = None
+            raise TimeoutError(
+                f"canvas_info on canvas '{self.state.canvas_id}' timed out after {timeout}s"
             )
 
         return req.get("result", {"error": "No result produced"})
