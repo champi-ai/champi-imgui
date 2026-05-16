@@ -64,6 +64,8 @@ class DrawingWidget(Widget):
         props.setdefault("annotations", [])
         props.setdefault("redo_stack", [])
         super().__init__(widget_id, **props)
+        # Screen position of this widget's top-left corner, updated each render frame.
+        self.canvas_screen_offset: tuple[float, float] = (0.0, 0.0)
 
     def render(self) -> None:  # pragma: no cover
         """Render the drawing canvas and handle mouse input.
@@ -73,6 +75,9 @@ class DrawingWidget(Widget):
         """
         if not self.state.visible:
             return
+
+        _pos = imgui.get_cursor_screen_pos()
+        self.canvas_screen_offset = (_pos.x, _pos.y)
 
         color: tuple[float, float, float, float] = self.state.properties.get(
             "color", (1.0, 0.0, 0.0, 1.0)
