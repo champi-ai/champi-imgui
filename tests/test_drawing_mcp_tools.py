@@ -775,3 +775,242 @@ class TestDrawingWidgetImportRoundtrip:
         assert len(widget.state.properties.get("strokes", [])) == 1
         assert len(widget.state.properties.get("annotations", [])) == 1
         assert len(widget.state.properties.get("shapes", [])) == 1
+
+
+# ---------------------------------------------------------------------------
+# Ellipse shape and fill rendering (issue #93)
+# ---------------------------------------------------------------------------
+
+
+class TestEllipseShape:
+    def test_add_ellipse_unfilled(self, cid):
+        """drawing_add_shape stores an ellipse with cx, cy, rx, ry."""
+        widget = _make_canvas_with_drawing(cid)
+
+        result = server.drawing_add_shape.fn(
+            cid, "draw1", "ellipse", cx=100.0, cy=80.0, rx=50.0, ry=30.0
+        )
+
+        assert result["success"] is True
+        shapes = widget.state.properties["shapes"]
+        assert len(shapes) == 1
+        s = shapes[0]
+        assert s["type"] == "ellipse"
+        assert s["cx"] == 100.0
+        assert s["cy"] == 80.0
+        assert s["rx"] == 50.0
+        assert s["ry"] == 30.0
+        assert s["filled"] is False
+
+    def test_add_ellipse_filled(self, cid):
+        """drawing_add_shape with filled=True stores a filled ellipse (not an error)."""
+        widget = _make_canvas_with_drawing(cid)
+
+        result = server.drawing_add_shape.fn(
+            cid, "draw1", "ellipse", cx=60.0, cy=40.0, rx=25.0, ry=15.0, filled=True
+        )
+
+        assert result["success"] is True
+        shapes = widget.state.properties["shapes"]
+        assert len(shapes) == 1
+        assert shapes[0]["filled"] is True
+
+    def test_ellipse_negative_rx_returns_error(self, cid):
+        """drawing_add_shape returns error when rx <= 0."""
+        _make_canvas_with_drawing(cid)
+
+        result = server.drawing_add_shape.fn(
+            cid, "draw1", "ellipse", cx=50.0, cy=50.0, rx=-10.0, ry=20.0
+        )
+
+        assert result["success"] is False
+        assert "radii must be positive" in result["error"]
+
+    def test_ellipse_zero_ry_returns_error(self, cid):
+        """drawing_add_shape returns error when ry <= 0."""
+        _make_canvas_with_drawing(cid)
+
+        result = server.drawing_add_shape.fn(
+            cid, "draw1", "ellipse", cx=50.0, cy=50.0, rx=20.0, ry=0.0
+        )
+
+        assert result["success"] is False
+        assert "radii must be positive" in result["error"]
+
+    def test_ellipse_in_valid_shape_types(self):
+        """VALID_SHAPE_TYPES includes 'ellipse'."""
+        from champi_imgui.widgets.drawing import VALID_SHAPE_TYPES
+
+        assert "ellipse" in VALID_SHAPE_TYPES
+
+    def test_ellipse_in_fill_supported_types(self):
+        """FILL_SUPPORTED_TYPES includes 'ellipse'."""
+        from champi_imgui.widgets.drawing import FILL_SUPPORTED_TYPES
+
+        assert "ellipse" in FILL_SUPPORTED_TYPES
+
+    def test_ellipse_roundtrip_serialize(self, cid):
+        """An ellipse shape survives export and re-import unchanged."""
+        widget = _make_canvas_with_drawing(cid)
+
+        server.drawing_add_shape.fn(
+            cid, "draw1", "ellipse", cx=70.0, cy=50.0, rx=35.0, ry=20.0, filled=True
+        )
+
+        export_result = server.drawing_export_strokes.fn(cid, "draw1")
+        assert export_result["success"] is True
+        exported_shapes = export_result["data"]["shapes"]
+        assert len(exported_shapes) == 1
+
+        widget.clear()
+        import_result = server.drawing_import_strokes.fn(
+            cid, "draw1", shapes=exported_shapes
+        )
+        assert import_result["success"] is True
+        restored = widget.state.properties["shapes"][0]
+        assert restored["type"] == "ellipse"
+        assert restored["cx"] == 70.0
+        assert restored["rx"] == 35.0
+        assert restored["filled"] is True
+
+
+class TestFillRendering:
+    def test_rect_filled_stored(self, cid):
+        """drawing_add_shape with shape_type='rect' and filled=True stores filled flag."""
+        widget = _make_canvas_with_drawing(cid)
+
+        result = server.drawing_add_shape.fn(
+            cid, "draw1", "rect", x1=0.0, y1=0.0, x2=100.0, y2=50.0, filled=True
+        )
+
+        assert result["success"] is True
+        shapes = widget.state.properties["shapes"]
+        assert shapes[0]["filled"] is True
+
+    def test_rect_unfilled_stored(self, cid):
+        """drawing_add_shape with rect and filled=False stores filled=False."""
+        widget = _make_canvas_with_drawing(cid)
+
+        result = server.drawing_add_shape.fn(
+            cid, "draw1", "rect", x1=0.0, y1=0.0, x2=100.0, y2=50.0
+        )
+
+        assert result["success"] is True
+        shapes = widget.state.properties["shapes"]
+        assert shapes[0]["filled"] is False
+
+    def test_circle_filled_stored(self, cid):
+        """drawing_add_shape with shape_type='circle' and filled=True stores filled flag."""
+        widget = _make_canvas_with_drawing(cid)
+
+        result = server.drawing_add_shape.fn(
+            cid, "draw1", "circle", cx=50.0, cy=50.0, radius=20.0, filled=True
+        )
+
+        assert result["success"] is True
+        assert widget.state.properties["shapes"][0]["filled"] is True
+
+    def test_fill_unsupported_on_line_returns_error(self, cid):
+        """drawing_add_shape returns error when filled=True on a line shape."""
+        _make_canvas_with_drawing(cid)
+
+        result = server.drawing_add_shape.fn(
+            cid, "draw1", "line", x1=0.0, y1=0.0, x2=100.0, y2=100.0, filled=True
+        )
+
+        assert result["success"] is False
+        assert "does not support fill" in result["error"]
+
+    def test_fill_unsupported_on_arrow_returns_error(self, cid):
+        """drawing_add_shape returns error when filled=True on an arrow shape."""
+        _make_canvas_with_drawing(cid)
+
+        result = server.drawing_add_shape.fn(
+            cid, "draw1", "arrow", x1=0.0, y1=0.0, x2=100.0, y2=100.0, filled=True
+        )
+
+        assert result["success"] is False
+        assert "does not support fill" in result["error"]
+
+    def test_unknown_shape_type_returns_error(self, cid):
+        """drawing_add_shape returns error for an unknown shape type."""
+        _make_canvas_with_drawing(cid)
+
+        result = server.drawing_add_shape.fn(cid, "draw1", "pentagon")
+
+        assert result["success"] is False
+        assert "Unknown shape type" in result["error"]
+
+    def test_import_filled_ellipse_succeeds(self, cid):
+        """drawing_import_strokes accepts a filled ellipse shape dict."""
+        widget = _make_canvas_with_drawing(cid)
+
+        shape = {
+            "type": "ellipse",
+            "cx": 50.0,
+            "cy": 50.0,
+            "rx": 30.0,
+            "ry": 20.0,
+            "color": [0.0, 1.0, 0.0, 1.0],
+            "thickness": 2.0,
+            "filled": True,
+        }
+        result = server.drawing_import_strokes.fn(cid, "draw1", shapes=[shape])
+
+        assert result["success"] is True
+        assert widget.state.properties["shapes"][0]["filled"] is True
+
+    def test_import_filled_rect_succeeds(self, cid):
+        """drawing_import_strokes accepts a filled rect shape dict."""
+        widget = _make_canvas_with_drawing(cid)
+
+        shape = {
+            "type": "rect",
+            "x1": 0.0,
+            "y1": 0.0,
+            "x2": 100.0,
+            "y2": 60.0,
+            "color": [1.0, 0.0, 0.0, 1.0],
+            "thickness": 1.5,
+            "filled": True,
+        }
+        result = server.drawing_import_strokes.fn(cid, "draw1", shapes=[shape])
+
+        assert result["success"] is True
+        assert widget.state.properties["shapes"][0]["filled"] is True
+
+    def test_import_filled_line_returns_error(self, cid):
+        """drawing_import_strokes rejects a filled line shape dict."""
+        _make_canvas_with_drawing(cid)
+
+        shape = {
+            "type": "line",
+            "x1": 0.0,
+            "y1": 0.0,
+            "x2": 50.0,
+            "y2": 50.0,
+            "color": [1.0, 1.0, 1.0, 1.0],
+            "thickness": 2.0,
+            "filled": True,
+        }
+        result = server.drawing_import_strokes.fn(cid, "draw1", shapes=[shape])
+
+        assert result["success"] is False
+        assert "does not support fill" in result["error"]
+
+    def test_import_unknown_shape_type_returns_error(self, cid):
+        """drawing_import_strokes rejects a shape dict with an unknown type."""
+        _make_canvas_with_drawing(cid)
+
+        shape = {"type": "hexagon", "color": [1.0, 1.0, 1.0, 1.0]}
+        result = server.drawing_import_strokes.fn(cid, "draw1", shapes=[shape])
+
+        assert result["success"] is False
+        assert "Unknown shape type" in result["error"]
+
+    def test_rect_and_ellipse_in_fill_supported_types(self):
+        """FILL_SUPPORTED_TYPES includes both 'rect' and 'ellipse'."""
+        from champi_imgui.widgets.drawing import FILL_SUPPORTED_TYPES
+
+        assert "rect" in FILL_SUPPORTED_TYPES
+        assert "ellipse" in FILL_SUPPORTED_TYPES

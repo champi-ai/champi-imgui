@@ -3359,24 +3359,30 @@ def drawing_add_shape(
     cx: float = 0.0,
     cy: float = 0.0,
     radius: float = 50.0,
+    rx: float = 50.0,
+    ry: float = 30.0,
     color: list[float] | None = None,
     thickness: float = 2.0,
+    filled: bool = False,
 ) -> dict[str, Any]:
     """Add a shape to a drawing widget.
 
     Args:
         canvas_id: Target canvas identifier
         widget_id: DrawingWidget identifier
-        shape_type: One of "rect", "circle", "arrow", "line"
+        shape_type: One of "rect", "circle", "ellipse", "arrow", "line"
         x1: Start x for rect/line/arrow (canvas-relative pixels)
         y1: Start y for rect/line/arrow (canvas-relative pixels)
         x2: End x for rect/line/arrow (canvas-relative pixels)
         y2: End y for rect/line/arrow (canvas-relative pixels)
-        cx: Center x for circle (canvas-relative pixels)
-        cy: Center y for circle (canvas-relative pixels)
+        cx: Center x for circle/ellipse (canvas-relative pixels)
+        cy: Center y for circle/ellipse (canvas-relative pixels)
         radius: Radius for circle in pixels
+        rx: Horizontal radius for ellipse in pixels
+        ry: Vertical radius for ellipse in pixels
         color: RGBA color as [r, g, b, a] with values 0.0-1.0 (default blue)
         thickness: Line thickness in pixels
+        filled: Whether the shape is filled (only for "rect", "circle", "ellipse")
 
     Returns:
         Success status and widget identifier
@@ -3388,21 +3394,56 @@ def drawing_add_shape(
         widget = canvas.widget_registry.get(widget_id)
         if not widget:
             return {"success": False, "error": f"Widget {widget_id} not found"}
-        from champi_imgui.widgets.drawing import DrawingWidget
+        from champi_imgui.widgets.drawing import (
+            FILL_SUPPORTED_TYPES,
+            VALID_SHAPE_TYPES,
+            DrawingWidget,
+        )
 
         if not isinstance(widget, DrawingWidget):
             return {
                 "success": False,
                 "error": f"Widget {widget_id} is not a DrawingWidget",
             }
+        if shape_type not in VALID_SHAPE_TYPES:
+            logger.warning(f"drawing_add_shape: unknown shape type '{shape_type}'")
+            return {"success": False, "error": f"Unknown shape type: '{shape_type}'"}
+        if filled and shape_type not in FILL_SUPPORTED_TYPES:
+            logger.warning(
+                f"drawing_add_shape: shape type '{shape_type}' does not support fill"
+            )
+            return {
+                "success": False,
+                "error": (
+                    f"Shape type '{shape_type}' does not support fill; "
+                    f"only {sorted(FILL_SUPPORTED_TYPES)} do"
+                ),
+            }
         color_tuple: tuple[float, float, float, float] = (
             tuple(color) if color else (0.0, 0.5, 1.0, 1.0)  # type: ignore[assignment]
         )
-        if shape_type == "circle":
+        if shape_type == "ellipse":
+            if rx <= 0 or ry <= 0:
+                return {
+                    "success": False,
+                    "error": "Ellipse radii must be positive",
+                }
             widget.add_shape(
                 shape_type,
                 color=color_tuple,
                 thickness=thickness,
+                filled=filled,
+                cx=cx,
+                cy=cy,
+                rx=rx,
+                ry=ry,
+            )
+        elif shape_type == "circle":
+            widget.add_shape(
+                shape_type,
+                color=color_tuple,
+                thickness=thickness,
+                filled=filled,
                 cx=cx,
                 cy=cy,
                 radius=radius,
@@ -3412,6 +3453,7 @@ def drawing_add_shape(
                 shape_type,
                 color=color_tuple,
                 thickness=thickness,
+                filled=filled,
                 x1=x1,
                 y1=y1,
                 x2=x2,
@@ -3616,13 +3658,40 @@ def drawing_import_strokes(
         widget = canvas.widget_registry.get(widget_id)
         if not widget:
             return {"success": False, "error": f"Widget {widget_id} not found"}
-        from champi_imgui.widgets.drawing import DrawingWidget
+        from champi_imgui.widgets.drawing import (
+            FILL_SUPPORTED_TYPES,
+            VALID_SHAPE_TYPES,
+            DrawingWidget,
+        )
 
         if not isinstance(widget, DrawingWidget):
             return {
                 "success": False,
                 "error": f"Widget {widget_id} is not a DrawingWidget",
             }
+
+        if shapes is not None:
+            for shape in shapes:
+                stype = shape.get("type", "")
+                if stype not in VALID_SHAPE_TYPES:
+                    logger.warning(
+                        f"drawing_import_strokes: unknown shape type '{stype}'"
+                    )
+                    return {
+                        "success": False,
+                        "error": f"Unknown shape type: '{stype}'",
+                    }
+                if shape.get("filled", False) and stype not in FILL_SUPPORTED_TYPES:
+                    logger.warning(
+                        f"drawing_import_strokes: shape type '{stype}' does not support fill"
+                    )
+                    return {
+                        "success": False,
+                        "error": (
+                            f"Shape type '{stype}' does not support fill; "
+                            f"only {sorted(FILL_SUPPORTED_TYPES)} do"
+                        ),
+                    }
 
         def _apply() -> None:
             props = widget.state.properties
