@@ -1,12 +1,15 @@
 """Tests for screenshot_canvas MCP tool and Canvas.request_screenshot."""
 
 import contextlib
+import subprocess
+import threading
 import uuid
+from unittest.mock import patch
 
 import pytest
 
 import champi_imgui.server.main as server
-from champi_imgui.core.canvas import CanvasManager
+from champi_imgui.core.canvas import Canvas, CanvasManager
 
 
 @pytest.fixture(autouse=True)
@@ -42,7 +45,7 @@ def test_screenshot_canvas_tool_exists():
 
 
 def test_screenshot_no_opengl_import():
-    """canvas.py must not import from OpenGL — we use mss instead."""
+    """canvas.py must not import from OpenGL — we use GDK/xwd instead."""
     import inspect
 
     from champi_imgui.core import canvas
@@ -65,3 +68,168 @@ def test_screenshot_canvas_timeout(cid, monkeypatch):
     result = server.screenshot_canvas.fn(cid, "/tmp/out.png")
     assert result["success"] is False
     assert "timed out" in result["error"].lower()
+
+
+def test_handle_screenshot_no_window_id(cid):
+    """_handle_screenshot returns error immediately when window_id is None."""
+    canvas = Canvas(cid)
+    canvas._window_id = None
+
+    done = threading.Event()
+    req = {"filepath": "/tmp/out.png", "region": None, "done": done}
+    canvas._screenshot_request = req
+    canvas._handle_screenshot()
+
+    assert done.is_set()
+    assert req["result"]["success"] is False
+    assert "Wayland" in req["result"]["error"] or "X11" in req["result"]["error"]
+
+    canvas.shm_manager.cleanup()
+
+
+def test_capture_gdk_returns_bool(cid, tmp_path):
+    """_capture_gdk returns a bool regardless of whether gi is installed."""
+    canvas = Canvas(cid)
+    filepath = str(tmp_path / "shot.png")
+
+    result = canvas._capture_gdk(12345, filepath)
+
+    assert isinstance(result, bool)
+
+    canvas.shm_manager.cleanup()
+
+
+def test_capture_gdk_gi_unavailable(cid, tmp_path):
+    """_capture_gdk returns False gracefully when gi is not installed."""
+    canvas = Canvas(cid)
+    filepath = str(tmp_path / "shot.png")
+
+    with patch("builtins.__import__", side_effect=ImportError("No module named 'gi'")):
+        result = canvas._capture_gdk(12345, filepath)
+
+    assert result is False
+    canvas.shm_manager.cleanup()
+
+
+def test_capture_xwd_tools_unavailable(cid, tmp_path):
+    """_capture_xwd returns False when xwd is not on PATH."""
+    canvas = Canvas(cid)
+    filepath = str(tmp_path / "shot.png")
+
+    with patch("subprocess.run", side_effect=FileNotFoundError("xwd not found")):
+        result = canvas._capture_xwd(12345, filepath)
+
+    assert result is False
+    canvas.shm_manager.cleanup()
+
+
+def test_capture_xwd_process_error(cid, tmp_path):
+    """_capture_xwd returns False when xwd returns non-zero exit code."""
+    canvas = Canvas(cid)
+    filepath = str(tmp_path / "shot.png")
+
+    with patch(
+        "subprocess.run",
+        side_effect=subprocess.CalledProcessError(1, "xwd"),
+    ):
+        result = canvas._capture_xwd(12345, filepath)
+
+    assert result is False
+    canvas.shm_manager.cleanup()
+
+
+def test_handle_screenshot_gdk_fallback_to_xwd(cid, tmp_path):
+    """When GDK fails, _handle_screenshot falls back to xwd path."""
+    canvas = Canvas(cid)
+    canvas._window_id = 99999
+    filepath = str(tmp_path / "shot.png")
+
+    done = threading.Event()
+    req = {"filepath": filepath, "region": None, "done": done}
+    canvas._screenshot_request = req
+
+    with (
+        patch.object(canvas, "_capture_gdk", return_value=False),
+        patch.object(canvas, "_capture_xwd", return_value=True),
+    ):
+        canvas._handle_screenshot()
+
+    assert done.is_set()
+    assert req["result"] == {"path": filepath}
+    canvas.shm_manager.cleanup()
+
+
+def test_handle_screenshot_both_fail(cid, tmp_path):
+    """When both GDK and xwd fail, result contains success=False."""
+    canvas = Canvas(cid)
+    canvas._window_id = 99999
+    filepath = str(tmp_path / "shot.png")
+
+    done = threading.Event()
+    req = {"filepath": filepath, "region": None, "done": done}
+    canvas._screenshot_request = req
+
+    with (
+        patch.object(canvas, "_capture_gdk", return_value=False),
+        patch.object(canvas, "_capture_xwd", return_value=False),
+    ):
+        canvas._handle_screenshot()
+
+    assert done.is_set()
+    assert req["result"]["success"] is False
+    assert "unavailable" in req["result"]["error"]
+    canvas.shm_manager.cleanup()
+
+
+def test_handle_screenshot_gdk_success(cid, tmp_path):
+    """When GDK succeeds, result is {"path": filepath}."""
+    canvas = Canvas(cid)
+    canvas._window_id = 11111
+    filepath = str(tmp_path / "shot.png")
+
+    done = threading.Event()
+    req = {"filepath": filepath, "region": None, "done": done}
+    canvas._screenshot_request = req
+
+    with (
+        patch.object(canvas, "_capture_gdk", return_value=True),
+        patch.object(canvas, "_capture_xwd", return_value=False),
+    ):
+        canvas._handle_screenshot()
+
+    assert done.is_set()
+    assert req["result"] == {"path": filepath}
+    canvas.shm_manager.cleanup()
+
+
+def test_screenshot_canvas_mcp_returns_filepath(cid, monkeypatch):
+    """screenshot_canvas MCP tool returns success with filepath key."""
+    server.canvas_manager.create_canvas(cid, auto_start=False)
+    canvas = server.canvas_manager.get_canvas(cid)
+    monkeypatch.setattr(
+        canvas,
+        "request_screenshot",
+        lambda filepath, region=None, timeout=5.0: {"path": filepath},
+    )
+
+    result = server.screenshot_canvas.fn(cid, "/tmp/out.png")
+    assert result["success"] is True
+    assert result["filepath"] == "/tmp/out.png"
+
+
+def test_screenshot_canvas_mcp_propagates_error(cid, monkeypatch):
+    """screenshot_canvas MCP tool propagates error from request_screenshot."""
+    server.canvas_manager.create_canvas(cid, auto_start=False)
+    canvas = server.canvas_manager.get_canvas(cid)
+    monkeypatch.setattr(
+        canvas,
+        "request_screenshot",
+        lambda filepath, region=None, timeout=5.0: {
+            "success": False,
+            "error": "GDK and xwd fallback both unavailable",
+        },
+    )
+
+    result = server.screenshot_canvas.fn(cid, "/tmp/out.png")
+    assert result["success"] is False
+    assert "unavailable" in result["error"]

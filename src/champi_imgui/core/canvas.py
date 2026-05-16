@@ -2,8 +2,12 @@
 
 Canvas runs in a separate thread, processing commands via shared memory
 from the MCP server.
+
+Note: Screenshot capture uses GDK (PyGObject) as primary path and xwd/ImageMagick
+as fallback. Wayland-native (non-XWayland) is out of scope.
 """
 
+import subprocess
 import threading
 from typing import Any, TypedDict
 
@@ -56,6 +60,9 @@ class Canvas:
         self._running = False
         self._render_thread: threading.Thread | None = None
 
+        # X11 window ID, populated after the render thread initialises the window
+        self._window_id: int | None = None
+
         # Screenshot request: set by request_screenshot(), consumed in render thread
         self._screenshot_request: _ScreenshotRequest | None = None
 
@@ -65,6 +72,18 @@ class Canvas:
         # Create shared memory regions (Canvas is the creator)
         self.shm_manager.create_regions()
         logger.info(f"Canvas '{canvas_id}' initialized with shared memory")
+
+    def get_window_id(self) -> int | None:
+        """Return the X11 window ID for this canvas, or None if unavailable.
+
+        The value is populated after the render thread initialises the GLFW
+        window.  It will be None on Wayland-native sessions or in headless
+        environments.
+
+        Returns:
+            X11 window ID as an integer, or None.
+        """
+        return self._window_id
 
     def run_async(self) -> None:
         """Start canvas in background thread (non-blocking).
@@ -156,6 +175,15 @@ class Canvas:
         def _post_init() -> None:
             nonlocal _implot_ctx
             _implot_ctx = implot.create_context()
+            try:
+                from imgui_bundle import glfw_utils
+
+                glfw_window = glfw_utils.glfw_window_hello_imgui()
+                import glfw
+
+                self._window_id = glfw.get_x11_window(glfw_window)
+            except Exception as e:
+                logger.debug(f"Could not obtain X11 window id: {e}")
 
         def _before_exit() -> None:
             if _implot_ctx is not None:
@@ -209,7 +237,7 @@ class Canvas:
     def _handle_screenshot(self) -> None:
         """Capture the canvas window and write a PNG file if requested.
 
-        Uses mss for cross-platform screen capture without requiring PyOpenGL.
+        Tries GDK (PyGObject) first, falls back to xwd + ImageMagick convert.
         Must be called from the render thread after all ImGui draw calls so the
         window contents are fully rendered.
         """
@@ -217,38 +245,106 @@ class Canvas:
         if req is None:
             return
         self._screenshot_request = None
+        filepath = req["filepath"]
         try:
-            import mss
-            from PIL import Image
+            win_id = self._window_id
+            if win_id is None:
+                req["result"] = {
+                    "success": False,
+                    "error": (
+                        "No X11 window ID available — "
+                        "Wayland-native sessions are not supported"
+                    ),
+                }
+                return
 
-            wp = hello_imgui.get_runner_params()
-            w, h = wp.app_window_params.window_geometry.size
+            captured = self._capture_gdk(win_id, filepath)
+            if not captured:
+                captured = self._capture_xwd(win_id, filepath)
 
-            with mss.mss() as sct:
-                monitor = sct.monitors[1]
-                raw = sct.grab(monitor)
-                img: Image.Image = Image.frombytes(
-                    "RGB", raw.size, raw.bgra, "raw", "BGRX"
-                )
-
-            img = img.crop((0, 0, int(w), int(h)))
-
-            region = req.get("region")
-            if region:
-                x, y, rw, rh = region
-                img = img.crop((x, y, x + rw, y + rh))
-
-            filepath = req["filepath"]
-            img.save(filepath)
-            req["result"] = {"width": img.width, "height": img.height}
+            if captured:
+                req["result"] = {"path": filepath}
+            else:
+                req["result"] = {
+                    "success": False,
+                    "error": "Screenshot failed: GDK and xwd fallback both unavailable",
+                }
         except Exception as e:
             logger.error(f"Screenshot failed: {e}")
-            import traceback
-
-            logger.error(traceback.format_exc())
-            req["result"] = {"error": str(e)}
+            req["result"] = {"success": False, "error": str(e)}
         finally:
             req["done"].set()
+
+    def _capture_gdk(self, win_id: int, filepath: str) -> bool:
+        """Capture window using GDK (PyGObject).
+
+        Args:
+            win_id: X11 window ID.
+            filepath: Destination PNG path.
+
+        Returns:
+            True on success, False if GDK is unavailable or capture failed.
+        """
+        try:
+            import gi
+
+            gi.require_version("Gdk", "3.0")
+            from gi.repository import Gdk, GdkX11
+
+            display = GdkX11.X11Display.get_default()
+            if display is None:
+                return False
+            gdk_window = GdkX11.X11Window.foreign_new_for_display(display, win_id)
+            if gdk_window is None:
+                return False
+            width = gdk_window.get_width()
+            height = gdk_window.get_height()
+            pixbuf = Gdk.pixbuf_get_from_window(gdk_window, 0, 0, width, height)
+            if pixbuf is None:
+                return False
+            pixbuf.savev(filepath, "png", [], [])
+            return True
+        except Exception as e:
+            logger.debug(f"GDK capture failed, will try fallback: {e}")
+            return False
+
+    def _capture_xwd(self, win_id: int, filepath: str) -> bool:
+        """Capture window using xwd + ImageMagick convert as fallback.
+
+        Args:
+            win_id: X11 window ID.
+            filepath: Destination PNG path.
+
+        Returns:
+            True on success, False if xwd/convert are unavailable or failed.
+        """
+        import contextlib
+        import os
+        import tempfile
+
+        xwd_fd, xwd_path = tempfile.mkstemp(suffix=".xwd")
+        os.close(xwd_fd)
+        try:
+            subprocess.run(
+                ["xwd", "-id", hex(win_id), "-out", xwd_path, "-silent"],
+                check=True,
+                timeout=10,
+            )
+            subprocess.run(
+                ["convert", xwd_path, filepath],
+                check=True,
+                timeout=10,
+            )
+            return True
+        except FileNotFoundError as e:
+            logger.debug(f"xwd/convert not available: {e}")
+            return False
+        except subprocess.CalledProcessError as e:
+            logger.debug(f"xwd/convert failed: {e}")
+            return False
+        finally:
+            with contextlib.suppress(OSError):
+                os.unlink(xwd_path)
 
     def request_screenshot(
         self,
@@ -263,12 +359,13 @@ class Canvas:
 
         Args:
             filepath: Destination path for the PNG file.
-            region: Optional ``[x, y, width, height]`` crop in pixels.
+            region: Optional ``[x, y, width, height]`` crop in pixels (GDK path
+                ignores this; the parameter is reserved for future use).
             timeout: Seconds to wait for the render thread to respond.
 
         Returns:
-            Dict with ``width`` and ``height`` of the saved image, or
-            ``{"error": <message>}`` on failure.
+            ``{"path": filepath}`` on success, or
+            ``{"success": False, "error": <message>}`` on failure.
 
         Raises:
             TimeoutError: If the render thread does not respond within *timeout*.
