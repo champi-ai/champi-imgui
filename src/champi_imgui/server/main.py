@@ -3359,6 +3359,8 @@ def drawing_add_shape(
     cx: float = 0.0,
     cy: float = 0.0,
     radius: float = 50.0,
+    rx: float = 50.0,
+    ry: float = 30.0,
     color: list[float] | None = None,
     thickness: float = 2.0,
     filled: bool = False,
@@ -3368,17 +3370,19 @@ def drawing_add_shape(
     Args:
         canvas_id: Target canvas identifier
         widget_id: DrawingWidget identifier
-        shape_type: One of "rect", "circle", "arrow", "line"
+        shape_type: One of "rect", "circle", "ellipse", "arrow", "line"
         x1: Start x for rect/line/arrow (canvas-relative pixels)
         y1: Start y for rect/line/arrow (canvas-relative pixels)
         x2: End x for rect/line/arrow (canvas-relative pixels)
         y2: End y for rect/line/arrow (canvas-relative pixels)
-        cx: Center x for circle (canvas-relative pixels)
-        cy: Center y for circle (canvas-relative pixels)
+        cx: Center x for circle/ellipse (canvas-relative pixels)
+        cy: Center y for circle/ellipse (canvas-relative pixels)
         radius: Radius for circle in pixels
+        rx: Horizontal radius for ellipse in pixels
+        ry: Vertical radius for ellipse in pixels
         color: RGBA color as [r, g, b, a] with values 0.0-1.0 (default blue)
         thickness: Line thickness in pixels
-        filled: Whether the shape is filled (only supported for "rect" and "circle")
+        filled: Whether the shape is filled (only for "rect", "circle", "ellipse")
 
     Returns:
         Success status and widget identifier
@@ -3418,7 +3422,23 @@ def drawing_add_shape(
         color_tuple: tuple[float, float, float, float] = (
             tuple(color) if color else (0.0, 0.5, 1.0, 1.0)  # type: ignore[assignment]
         )
-        if shape_type == "circle":
+        if shape_type == "ellipse":
+            if rx <= 0 or ry <= 0:
+                return {
+                    "success": False,
+                    "error": "Ellipse radii must be positive",
+                }
+            widget.add_shape(
+                shape_type,
+                color=color_tuple,
+                thickness=thickness,
+                filled=filled,
+                cx=cx,
+                cy=cy,
+                rx=rx,
+                ry=ry,
+            )
+        elif shape_type == "circle":
             widget.add_shape(
                 shape_type,
                 color=color_tuple,
@@ -3624,8 +3644,7 @@ def drawing_import_strokes(
         canvas_id: Target canvas identifier
         widget_id: DrawingWidget identifier
         strokes: List of strokes to import (each stroke is a list of [x, y] points)
-        shapes: List of shape dicts to import; each must have a known "type" field
-            and may not set "filled": true for types that do not support fill
+        shapes: List of shape dicts to import
         annotations: List of annotation dicts to import
         merge: When False (default) replace existing data; when True append to it
 
@@ -3698,6 +3717,73 @@ def drawing_import_strokes(
         return {"success": True, "data": {"widget_id": widget_id}}
     except Exception as e:
         logger.error(f"Error importing strokes into '{widget_id}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def update_stroke(
+    canvas_id: str,
+    widget_id: str,
+    index: int,
+    points: list | None = None,
+    color: list[float] | None = None,
+    brush_size: float | None = None,
+) -> dict[str, Any]:
+    """Update a single stroke in a DrawingWidget by index.
+
+    Performs a partial in-place update: only the fields that are not None
+    are written to the stroke. Passing all None is a safe no-op.
+
+    Args:
+        canvas_id: Target canvas identifier
+        widget_id: DrawingWidget identifier
+        index: Zero-based index of the stroke to update (must be non-negative)
+        points: Replacement point list as [[x, y], ...] canvas-relative coords
+        color: Replacement RGBA color as [r, g, b, a] (0.0-1.0)
+        brush_size: Replacement brush thickness in pixels
+
+    Returns:
+        ``{"success": True}`` on success, or
+        ``{"success": False, "error": <message>}`` on failure.
+    """
+    if index < 0:
+        return {"success": False, "error": "index must be non-negative"}
+
+    try:
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if not canvas:
+            return {"success": False, "error": f"Canvas {canvas_id} not found"}
+        widget = canvas.widget_registry.get(widget_id)
+        if not widget:
+            return {"success": False, "error": f"Widget {widget_id} not found"}
+
+        from champi_imgui.widgets.drawing import DrawingWidget
+
+        if not isinstance(widget, DrawingWidget):
+            return {
+                "success": False,
+                "error": f"Widget {widget_id} is not a DrawingWidget",
+            }
+
+        strokes: list[dict[str, Any]] = widget.state.properties.get("strokes", [])
+        if index >= len(strokes):
+            return {
+                "success": False,
+                "error": f"index {index} out of range ({len(strokes)} strokes)",
+            }
+
+        stroke = strokes[index]
+        if points is not None:
+            stroke["points"] = points
+        if color is not None:
+            stroke["color"] = tuple(color)
+        if brush_size is not None:
+            stroke["brush_size"] = brush_size
+
+        canvas._wake_render()
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Error updating stroke {index} on widget '{widget_id}': {e}")
         return {"success": False, "error": str(e)}
 
 
@@ -3835,9 +3921,9 @@ def screenshot_canvas(
             return {"success": False, "error": f"Canvas {canvas_id} not found"}
         canvas_manager.ensure_canvas_running(canvas_id)
         result = canvas.request_screenshot(filepath, region=region)
-        if result.get("success") is False:
-            return {"success": False, "error": result.get("error", "Unknown error")}
-        return {"success": True, "filepath": result.get("path", filepath)}
+        if "error" in result:
+            return {"success": False, "error": result["error"]}
+        return {"success": True, "filepath": filepath, **result}
     except TimeoutError:
         return {
             "success": False,

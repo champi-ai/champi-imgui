@@ -20,8 +20,10 @@ AUTHOR_COLORS: dict[str, tuple[float, float, float, float]] = {
     "llm": (0.0, 0.5, 1.0, 1.0),
 }
 
-VALID_SHAPE_TYPES: frozenset[str] = frozenset({"rect", "circle", "arrow", "line"})
-FILL_SUPPORTED_TYPES: frozenset[str] = frozenset({"rect", "circle"})
+VALID_SHAPE_TYPES: frozenset[str] = frozenset(
+    {"rect", "circle", "ellipse", "arrow", "line"}
+)
+FILL_SUPPORTED_TYPES: frozenset[str] = frozenset({"rect", "circle", "ellipse"})
 
 
 class DrawingWidget(Widget):
@@ -263,23 +265,56 @@ class DrawingWidget(Widget):
             ox, oy = canvas_min.x, canvas_min.y
             stype = shape["type"]
 
+            filled: bool = shape.get("filled", False)
             if stype == "rect":
-                draw_list.add_rect(
-                    imgui.ImVec2(ox + shape["x1"], oy + shape["y1"]),
-                    imgui.ImVec2(ox + shape["x2"], oy + shape["y2"]),
-                    color_u32,
-                    0.0,
-                    0,
-                    t,
-                )
+                if filled:
+                    draw_list.add_rect_filled(
+                        imgui.ImVec2(ox + shape["x1"], oy + shape["y1"]),
+                        imgui.ImVec2(ox + shape["x2"], oy + shape["y2"]),
+                        color_u32,
+                    )
+                else:
+                    draw_list.add_rect(
+                        imgui.ImVec2(ox + shape["x1"], oy + shape["y1"]),
+                        imgui.ImVec2(ox + shape["x2"], oy + shape["y2"]),
+                        color_u32,
+                        0.0,
+                        0,
+                        t,
+                    )
             elif stype == "circle":
-                draw_list.add_circle(
-                    imgui.ImVec2(ox + shape["cx"], oy + shape["cy"]),
-                    shape["radius"],
-                    color_u32,
-                    0,
-                    t,
-                )
+                if filled:
+                    draw_list.add_circle_filled(
+                        imgui.ImVec2(ox + shape["cx"], oy + shape["cy"]),
+                        shape["radius"],
+                        color_u32,
+                    )
+                else:
+                    draw_list.add_circle(
+                        imgui.ImVec2(ox + shape["cx"], oy + shape["cy"]),
+                        shape["radius"],
+                        color_u32,
+                        0,
+                        t,
+                    )
+            elif stype == "ellipse":
+                center = imgui.ImVec2(ox + shape["cx"], oy + shape["cy"])
+                radii = imgui.ImVec2(shape["rx"], shape["ry"])
+                if filled:
+                    draw_list.add_ellipse_filled(
+                        center,
+                        radii,
+                        color_u32,
+                    )
+                else:
+                    draw_list.add_ellipse(
+                        center,
+                        radii,
+                        color_u32,
+                        0.0,
+                        0,
+                        t,
+                    )
             elif stype in ("line", "arrow"):
                 draw_list.add_line(
                     imgui.ImVec2(ox + shape["x1"], oy + shape["y1"]),
@@ -347,12 +382,13 @@ class DrawingWidget(Widget):
         """Add a shape to the canvas.
 
         Args:
-            shape_type: One of "rect", "circle", "arrow", "line"
+            shape_type: One of "rect", "circle", "ellipse", "arrow", "line"
             color: RGBA color tuple (0.0-1.0 range)
             thickness: Line thickness in pixels
-            filled: Whether the shape is filled (only supported for "rect" and "circle")
+            filled: Whether the shape is filled (only for "rect", "circle", "ellipse")
             **coords: Coordinate arguments. rect/arrow/line use x1, y1, x2, y2;
-                circle uses cx, cy, radius. All values are canvas-relative.
+                circle uses cx, cy, radius; ellipse uses cx, cy, rx, ry.
+                All values are canvas-relative.
 
         Raises:
             ValueError: If shape_type is unknown or filled is True for a type that
