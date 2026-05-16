@@ -42,7 +42,7 @@ The easiest way to use champi-imgui is via the `.mcp.json` config — no install
       "command": "uvx",
       "args": [
         "--from",
-        "https://github.com/champi-ai/champi-imgui/releases/download/v1.13.0/champi_imgui-1.13.0-py3-none-any.whl",
+        "https://github.com/champi-ai/champi-imgui/releases/download/v1.14.0/champi_imgui-1.14.0-py3-none-any.whl",
         "champi-imgui",
         "serve"
       ]
@@ -59,14 +59,14 @@ Install from the GitHub release:
 
 ```bash
 # Run without installing (ephemeral)
-uvx --from https://github.com/champi-ai/champi-imgui/releases/download/v1.13.0/champi_imgui-1.13.0-py3-none-any.whl champi-imgui serve
+uvx --from https://github.com/champi-ai/champi-imgui/releases/download/v1.14.0/champi_imgui-1.14.0-py3-none-any.whl champi-imgui serve
 
 # Install as a persistent tool
-uv tool install https://github.com/champi-ai/champi-imgui/releases/download/v1.13.0/champi_imgui-1.13.0-py3-none-any.whl
+uv tool install https://github.com/champi-ai/champi-imgui/releases/download/v1.14.0/champi_imgui-1.14.0-py3-none-any.whl
 champi-imgui serve
 
 # Add to a project
-uv add https://github.com/champi-ai/champi-imgui/releases/download/v1.13.0/champi_imgui-1.13.0-py3-none-any.whl
+uv add https://github.com/champi-ai/champi-imgui/releases/download/v1.14.0/champi_imgui-1.14.0-py3-none-any.whl
 ```
 
 ---
