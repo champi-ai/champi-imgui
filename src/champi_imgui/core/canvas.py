@@ -5,7 +5,7 @@ from the MCP server.
 """
 
 import threading
-from typing import Any
+from typing import Any, TypedDict
 
 from imgui_bundle import hello_imgui, imgui
 from loguru import logger
@@ -14,6 +14,15 @@ from champi_imgui.core.state import CanvasState
 from champi_imgui.core.widget import Widget, WidgetRegistry
 from champi_imgui.ipc.command_types import CommandType
 from champi_imgui.ipc.shared_memory_manager import SharedMemoryManager
+
+
+class _ScreenshotRequest(TypedDict, total=False):
+    """Internal screenshot request passed between threads."""
+
+    filepath: str
+    region: list[int] | None
+    done: threading.Event
+    result: dict[str, Any]
 
 
 class Canvas:
@@ -37,6 +46,9 @@ class Canvas:
         # Thread control
         self._running = False
         self._render_thread: threading.Thread | None = None
+
+        # Screenshot request: set by request_screenshot(), consumed in render thread
+        self._screenshot_request: _ScreenshotRequest | None = None
 
         # Create shared memory regions (Canvas is the creator)
         self.shm_manager.create_regions()
@@ -179,6 +191,81 @@ class Canvas:
                 )
 
         imgui.end()
+        self._handle_screenshot()
+
+    def _handle_screenshot(self) -> None:
+        """Capture framebuffer pixels and write a PNG file if requested.
+
+        Must be called from the render thread after all ImGui draw calls for
+        the frame are complete so the framebuffer contains the latest content.
+        """
+        req = self._screenshot_request
+        if req is None:
+            return
+        self._screenshot_request = None
+        try:
+            import ctypes
+
+            from OpenGL import GL
+            from PIL import Image
+
+            wp = hello_imgui.get_runner_params()
+            w, h = wp.app_window_params.window_geometry.size
+
+            buf = (ctypes.c_ubyte * (w * h * 3))()
+            GL.glReadPixels(0, 0, w, h, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, buf)
+            img: Image.Image = Image.frombuffer("RGB", (w, h), bytes(buf))
+            img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+
+            region = req.get("region")
+            if region:
+                x, y, rw, rh = region
+                img = img.crop((x, y, x + rw, y + rh))
+
+            filepath = req["filepath"]
+            img.save(filepath)
+            req["result"] = {"width": img.width, "height": img.height}
+        except Exception as e:
+            logger.error(f"Screenshot failed: {e}")
+            req["result"] = {"error": str(e)}
+        finally:
+            req["done"].set()
+
+    def request_screenshot(
+        self,
+        filepath: str,
+        region: list[int] | None = None,
+        timeout: float = 5.0,
+    ) -> dict[str, Any]:
+        """Capture the canvas window as a PNG file (thread-safe).
+
+        Schedules a screenshot on the render thread and blocks until it
+        completes or the timeout expires.
+
+        Args:
+            filepath: Destination path for the PNG file.
+            region: Optional ``[x, y, width, height]`` crop in pixels.
+            timeout: Seconds to wait for the render thread to respond.
+
+        Returns:
+            Dict with ``width`` and ``height`` of the saved image, or
+            ``{"error": <message>}`` on failure.
+
+        Raises:
+            TimeoutError: If the render thread does not respond within *timeout*.
+        """
+        done = threading.Event()
+        req: _ScreenshotRequest = {"filepath": filepath, "region": region, "done": done}
+        self._screenshot_request = req
+        self._wake_render()
+
+        if not done.wait(timeout=timeout):
+            self._screenshot_request = None
+            raise TimeoutError(
+                f"Screenshot of canvas '{self.state.canvas_id}' timed out after {timeout}s"
+            )
+
+        return req.get("result", {"error": "No result produced"})
 
     def _process_commands(self) -> None:
         """Process all pending commands from shared memory."""
