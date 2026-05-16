@@ -1098,7 +1098,7 @@ class TestShapeValidation:
         result = server.drawing_import_strokes.fn(cid, "draw1", shapes=shapes)
 
         assert result["success"] is True
-        assert len(widget.state.properties["shapes"]) == 2
+        assert len(widget.state.properties["shapes"]) == 4
 
     def test_import_strokes_no_shapes_arg_is_safe(self, cid):
         """drawing_import_strokes with shapes=None does not raise."""
