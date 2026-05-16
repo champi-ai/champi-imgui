@@ -94,6 +94,26 @@ class TestThemeManager:
         assert result is True
         mock_apply.assert_called_once_with(theme)
 
+    def test_apply_theme_by_name_case_insensitive(self) -> None:
+        """apply_theme_by_name matches regardless of case."""
+        manager = ThemeManager()
+        theme = Theme(name="Nord")
+        manager.register_theme(theme)
+        with patch.object(manager, "apply_theme") as mock_apply:
+            result = manager.apply_theme_by_name("nord")
+        assert result is True
+        mock_apply.assert_called_once_with(theme)
+
+    def test_apply_theme_by_name_uppercase_input(self) -> None:
+        """apply_theme_by_name matches uppercase input against title-case key."""
+        manager = ThemeManager()
+        theme = Theme(name="Cherry")
+        manager.register_theme(theme)
+        with patch.object(manager, "apply_theme") as mock_apply:
+            result = manager.apply_theme_by_name("CHERRY")
+        assert result is True
+        mock_apply.assert_called_once_with(theme)
+
     def test_apply_theme_sets_current(self) -> None:
         manager = ThemeManager()
         theme = Theme(name="Test")

@@ -142,12 +142,19 @@ class ThemeManager:
         logger.info(f"Applied theme: {theme.name}")
 
     def apply_theme_by_name(self, name: str) -> bool:
-        """Apply a theme by name. Returns True if found and applied."""
-        if name not in self.themes:
-            logger.error(f"Theme not found: {name}")
-            return False
-        self.apply_theme(self.themes[name])
-        return True
+        """Apply a theme by name (case-insensitive). Returns True if found and applied."""
+        # Exact match first
+        if name in self.themes:
+            self.apply_theme(self.themes[name])
+            return True
+        # Case-insensitive fallback
+        name_lower = name.lower()
+        for key, theme in self.themes.items():
+            if key.lower() == name_lower:
+                self.apply_theme(theme)
+                return True
+        logger.error(f"Theme not found: {name}")
+        return False
 
     def apply_color_scheme(self, scheme: ColorScheme) -> None:
         """Apply a built-in ImGui color scheme."""
