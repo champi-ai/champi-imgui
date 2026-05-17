@@ -258,20 +258,25 @@ class Canvas:
         self._screenshot_request = None
         filepath = req["filepath"]
         try:
+            # OpenGL reads directly from the GPU framebuffer — no X11 needed.
+            # Always try it first so Wayland/headless environments are covered.
+            if self._capture_opengl(filepath):
+                req["result"] = {"path": filepath}
+                return
+
+            # Fall back to X11-based methods.
             win_id = self._window_id
             if win_id is None:
                 req["result"] = {
                     "success": False,
                     "error": (
-                        "No X11 window ID available — "
-                        "Wayland-native sessions are not supported"
+                        "Screenshot failed: OpenGL unavailable and no X11 window ID "
+                        "(Wayland-native sessions are not supported)"
                     ),
                 }
                 return
 
-            captured = self._capture_opengl(filepath)
-            if not captured:
-                captured = self._capture_gdk(win_id, filepath)
+            captured = self._capture_gdk(win_id, filepath)
             if not captured:
                 captured = self._capture_xwd(win_id, filepath)
 

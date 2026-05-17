@@ -77,19 +77,44 @@ def test_screenshot_canvas_timeout(cid, monkeypatch):
 
 
 def test_handle_screenshot_no_window_id(cid):
-    """_handle_screenshot returns error immediately when window_id is None."""
+    """_handle_screenshot returns error when OpenGL fails and window_id is None."""
     canvas = Canvas(cid)
     canvas._window_id = None
 
     done = threading.Event()
     req = {"filepath": "/tmp/out.png", "region": None, "done": done}
     canvas._screenshot_request = req
-    canvas._handle_screenshot()
+    with patch.object(canvas, "_capture_opengl", return_value=False):
+        canvas._handle_screenshot()
 
     assert done.is_set()
     assert req["result"]["success"] is False
     assert "Wayland" in req["result"]["error"] or "X11" in req["result"]["error"]
 
+    canvas.shm_manager.cleanup()
+
+
+def test_handle_screenshot_opengl_succeeds_without_window_id(cid, tmp_path):
+    """OpenGL capture works even when win_id is None (Wayland/headless).
+
+    This is the regression test for the bug introduced in v1.9.2 where
+    _capture_opengl was placed after the win_id-is-None guard, causing
+    every screenshot to fail on Wayland and headless environments.
+    """
+    canvas = Canvas(cid)
+    canvas._window_id = None  # Simulates Wayland / no X11
+    filepath = str(tmp_path / "shot.png")
+
+    done = threading.Event()
+    req = {"filepath": filepath, "region": None, "done": done}
+    canvas._screenshot_request = req
+
+    with patch.object(canvas, "_capture_opengl", return_value=True) as mock_gl:
+        canvas._handle_screenshot()
+
+    assert done.is_set()
+    assert req["result"] == {"path": filepath}
+    mock_gl.assert_called_once_with(filepath)  # OpenGL was attempted
     canvas.shm_manager.cleanup()
 
 
