@@ -3172,6 +3172,7 @@ def add_brush_controls(
     line_width: float = 1.0,
     is_eraser: bool = False,
     brush_style: str = "solid",
+    drawing_widget_id: str = "",
 ) -> dict[str, Any]:
     """Add brush controls sidebar to the canvas.
 
@@ -3186,12 +3187,15 @@ def add_brush_controls(
         line_width: Current line width
         is_eraser: Whether eraser mode is active
         brush_style: Current brush style
+        drawing_widget_id: Optional ID of a DrawingWidget to sync with. When
+            set, any brush property change in the UI is immediately propagated
+            to that DrawingWidget so new strokes use the updated settings.
 
     Returns:
         Success status and serialized widget data
     """
     try:
-        from champi_imgui.widgets.drawing import BrushWidget
+        from champi_imgui.widgets.drawing import BrushWidget, DrawingWidget
 
         if color.startswith("#"):
             color_tuple = _hex_to_rgba(color[1:].upper())
@@ -3206,7 +3210,14 @@ def add_brush_controls(
             is_eraser=is_eraser,
             brush_style=brush_style,
         )
-        return _create_widget_in_canvas(canvas_id, widget)
+        result = _create_widget_in_canvas(canvas_id, widget)
+        if result.get("success") and drawing_widget_id:
+            canvas = canvas_manager.get_canvas(canvas_id)
+            if canvas:
+                drawing = canvas.widget_registry.get(drawing_widget_id)
+                if isinstance(drawing, DrawingWidget):
+                    widget.link_to_drawing(drawing)
+        return result
     except Exception as e:
         logger.error(f"Error adding brush controls '{widget_id}': {e}")
         return {"success": False, "error": str(e)}
