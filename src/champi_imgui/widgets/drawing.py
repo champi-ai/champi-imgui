@@ -116,14 +116,19 @@ class DrawingWidget(Widget):
             imgui.color_convert_float4_to_u32(imgui.ImVec4(0.15, 0.15, 0.15, 1.0)),
         )
 
-        # Replay all completed strokes
+        # Replay all completed strokes; fall back to AUTHOR_COLORS when no
+        # explicit color is stored (e.g. strokes imported without a color field).
+        _default_color: tuple[float, float, float, float] = (0.1, 0.1, 0.1, 1.0)
         for stroke in strokes:
             points = stroke["points"]
             if len(points) >= 2:
+                stroke_color: tuple[float, float, float, float] = stroke.get(
+                    "color"
+                ) or AUTHOR_COLORS.get(stroke.get("author", ""), _default_color)
                 self._draw_stroke(
                     draw_list,
                     points,
-                    stroke["color"],
+                    stroke_color,
                     stroke["brush_size"],
                     stroke["brush_style"],
                     canvas_min,
