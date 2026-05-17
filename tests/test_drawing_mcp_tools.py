@@ -1128,10 +1128,24 @@ class TestDrawingE2EWorkflow:
 
         # Manually add two strokes (simulates mouse input)
         widget.state.properties["strokes"] = [
-            {"points": [(0, 0), (10, 10)], "author": "user", "timestamp": 0.0,
-             "tool": "brush", "color": (1.0, 0.0, 0.0, 1.0), "brush_size": 5.0, "brush_style": "solid"},
-            {"points": [(20, 20), (30, 30)], "author": "user", "timestamp": 0.1,
-             "tool": "brush", "color": (0.0, 1.0, 0.0, 1.0), "brush_size": 5.0, "brush_style": "solid"},
+            {
+                "points": [(0, 0), (10, 10)],
+                "author": "user",
+                "timestamp": 0.0,
+                "tool": "brush",
+                "color": (1.0, 0.0, 0.0, 1.0),
+                "brush_size": 5.0,
+                "brush_style": "solid",
+            },
+            {
+                "points": [(20, 20), (30, 30)],
+                "author": "user",
+                "timestamp": 0.1,
+                "tool": "brush",
+                "color": (0.0, 1.0, 0.0, 1.0),
+                "brush_size": 5.0,
+                "brush_style": "solid",
+            },
         ]
 
         assert len(widget.state.properties["strokes"]) == 2
@@ -1164,8 +1178,14 @@ class TestDrawingE2EWorkflow:
         assert isinstance(widget, DrawingWidget)
 
         result = server.drawing_add_shape.fn(
-            cid, "draw1", "rect", x1=0.0, y1=0.0, x2=100.0, y2=50.0,
-            color=[0.0, 1.0, 0.0, 1.0]
+            cid,
+            "draw1",
+            "rect",
+            x1=0.0,
+            y1=0.0,
+            x2=100.0,
+            y2=50.0,
+            color=[0.0, 1.0, 0.0, 1.0],
         )
         assert result["success"] is True
         assert len(widget.state.properties["shapes"]) == 1
@@ -1219,12 +1239,26 @@ class TestDrawingE2EWorkflow:
         widget = canvas.widget_registry.get("draw1")
 
         widget.state.properties["strokes"] = [
-            {"points": [(0, 0)], "author": "user", "timestamp": 0.0,
-             "tool": "brush", "color": (1.0, 0.0, 0.0, 1.0), "brush_size": 5.0, "brush_style": "solid"}
+            {
+                "points": [(0, 0)],
+                "author": "user",
+                "timestamp": 0.0,
+                "tool": "brush",
+                "color": (1.0, 0.0, 0.0, 1.0),
+                "brush_size": 5.0,
+                "brush_style": "solid",
+            }
         ]
         widget.state.properties["redo_stack"] = [
-            {"points": [(5, 5)], "author": "user", "timestamp": 0.0,
-             "tool": "brush", "color": (1.0, 0.0, 0.0, 1.0), "brush_size": 5.0, "brush_style": "solid"}
+            {
+                "points": [(5, 5)],
+                "author": "user",
+                "timestamp": 0.0,
+                "tool": "brush",
+                "color": (1.0, 0.0, 0.0, 1.0),
+                "brush_size": 5.0,
+                "brush_style": "solid",
+            }
         ]
 
         server.drawing_clear.fn(cid, "draw1")
