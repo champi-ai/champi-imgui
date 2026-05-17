@@ -2298,14 +2298,13 @@ def apply_theme(theme_name: str) -> dict[str, Any]:
         Success status and applied theme name
     """
     try:
-        key = theme_name.lower()
-        if not theme_manager.apply_theme_by_name(key):
+        if not theme_manager.apply_theme_by_name(theme_name):
             available = theme_manager.list_themes()
             return {
                 "success": False,
                 "error": f"Theme '{theme_name}' not found. Available: {available}",
             }
-        return {"success": True, "data": {"theme": key}}
+        return {"success": True, "data": {"theme": theme_name}}
     except Exception as e:
         logger.error(f"Error applying theme '{theme_name}': {e}")
         return {"success": False, "error": str(e)}

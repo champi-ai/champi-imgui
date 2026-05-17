@@ -269,7 +269,9 @@ class Canvas:
                 }
                 return
 
-            captured = self._capture_gdk(win_id, filepath)
+            captured = self._capture_opengl(filepath)
+            if not captured:
+                captured = self._capture_gdk(win_id, filepath)
             if not captured:
                 captured = self._capture_xwd(win_id, filepath)
 
@@ -278,13 +280,39 @@ class Canvas:
             else:
                 req["result"] = {
                     "success": False,
-                    "error": "Screenshot failed: GDK and xwd fallback both unavailable",
+                    "error": "Screenshot failed: all capture methods unavailable",
                 }
         except Exception as e:
             logger.error(f"Screenshot failed: {e}")
             req["result"] = {"success": False, "error": str(e)}
         finally:
             req["done"].set()
+
+    def _capture_opengl(self, filepath: str) -> bool:
+        """Capture the window by reading the OpenGL framebuffer directly.
+
+        Does not use X11 — works on XWayland and when the compositor blocks XGetImage.
+        Reads from the back buffer (contains the previous fully-rendered frame).
+
+        Args:
+            filepath: Destination PNG path.
+
+        Returns:
+            True on success, False if OpenGL or Pillow are unavailable.
+        """
+        try:
+            from OpenGL import GL
+            from PIL import Image
+
+            w, h = self.state.size
+            data = GL.glReadPixels(0, 0, w, h, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE)
+            img = Image.frombytes("RGBA", (w, h), data)
+            img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+            img.save(filepath, "PNG")
+            return True
+        except Exception as e:
+            logger.debug(f"OpenGL capture failed, will try GDK: {e}")
+            return False
 
     def _capture_gdk(self, win_id: int, filepath: str) -> bool:
         """Capture window using GDK (PyGObject).

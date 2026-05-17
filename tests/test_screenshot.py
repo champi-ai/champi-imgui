@@ -44,15 +44,21 @@ def test_screenshot_canvas_tool_exists():
     assert callable(server.screenshot_canvas.fn)
 
 
-def test_screenshot_no_opengl_import():
-    """canvas.py must not import from OpenGL — we use GDK/xwd instead."""
+def test_screenshot_opengl_import_is_lazy():
+    """canvas.py imports OpenGL only inside _capture_opengl, not at module level."""
     import inspect
 
-    from champi_imgui.core import canvas
+    from champi_imgui.core import canvas as canvas_mod
 
-    source = inspect.getsource(canvas)
-    assert "from OpenGL" not in source
-    assert "import OpenGL" not in source
+    source = inspect.getsource(canvas_mod)
+    # Lazy import is acceptable; it must not be a top-level import
+    lines = source.splitlines()
+    top_level = [
+        ln
+        for ln in lines
+        if (ln.startswith("import OpenGL") or ln.startswith("from OpenGL"))
+    ]
+    assert top_level == [], f"Top-level OpenGL import found: {top_level}"
 
 
 def test_screenshot_canvas_timeout(cid, monkeypatch):
@@ -159,8 +165,8 @@ def test_handle_screenshot_gdk_fallback_to_xwd(cid, tmp_path):
     canvas.shm_manager.cleanup()
 
 
-def test_handle_screenshot_both_fail(cid, tmp_path):
-    """When both GDK and xwd fail, result contains success=False."""
+def test_handle_screenshot_all_fail(cid, tmp_path):
+    """When all capture methods fail, result contains success=False."""
     canvas = Canvas(cid)
     canvas._window_id = 99999
     filepath = str(tmp_path / "shot.png")
@@ -170,6 +176,7 @@ def test_handle_screenshot_both_fail(cid, tmp_path):
     canvas._screenshot_request = req
 
     with (
+        patch.object(canvas, "_capture_opengl", return_value=False),
         patch.object(canvas, "_capture_gdk", return_value=False),
         patch.object(canvas, "_capture_xwd", return_value=False),
     ):
