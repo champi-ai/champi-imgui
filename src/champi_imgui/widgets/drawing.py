@@ -240,8 +240,7 @@ class DrawingWidget(Widget):
                     t = t_end
                     draw = not draw
         else:
-            for i in range(len(pts) - 1):
-                draw_list.add_line(pts[i], pts[i + 1], color_u32, brush_size)
+            draw_list.add_polyline(pts, color_u32, 0, brush_size)  # type: ignore[arg-type]
 
     def _draw_shape(  # pragma: no cover
         self,
