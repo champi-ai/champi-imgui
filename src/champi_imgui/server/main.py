@@ -377,13 +377,19 @@ def update_canvas_state(
         if not canvas._running:
             canvas.run_async()
 
+        # width and height must be provided together
+        if (width is None) != (height is None):
+            return {
+                "success": False,
+                "error": "width and height must both be provided to resize the canvas",
+            }
+
         # Prepare command data
         cmd_data: dict[str, Any] = {"canvas_id": canvas_id}
         if title is not None:
             cmd_data["title"] = title
-        if width is not None:
+        if width is not None and height is not None:
             cmd_data["width"] = width
-        if height is not None:
             cmd_data["height"] = height
 
         # Send command via shared memory
