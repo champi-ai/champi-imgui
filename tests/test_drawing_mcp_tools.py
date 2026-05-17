@@ -1127,7 +1127,6 @@ class TestDrawingE2EWorkflow:
         assert isinstance(widget, DrawingWidget)
 
         # Manually add two strokes (simulates mouse input)
-        from champi_imgui.widgets.drawing import DrawingWidget as DW
         widget.state.properties["strokes"] = [
             {"points": [(0, 0), (10, 10)], "author": "user", "timestamp": 0.0,
              "tool": "brush", "color": (1.0, 0.0, 0.0, 1.0), "brush_size": 5.0, "brush_style": "solid"},
