@@ -532,6 +532,26 @@ class BrushWidget(Widget):
         props["is_eraser"] = is_eraser
         props["brush_style"] = brush_style
         super().__init__(widget_id, **props)
+        self._linked_drawing: DrawingWidget | None = None
+
+    def link_to_drawing(self, widget: "DrawingWidget") -> None:
+        """Link this BrushWidget to a DrawingWidget for live state sync.
+
+        When any brush property changes, the linked DrawingWidget's matching
+        properties are updated so strokes immediately use the new settings.
+
+        Args:
+            widget: DrawingWidget instance to sync with.
+        """
+        self._linked_drawing = widget
+
+    def _sync_to_drawing(self) -> None:
+        """Push current brush properties to the linked DrawingWidget."""
+        if self._linked_drawing is None:
+            return
+        props = self._linked_drawing.state.properties
+        for key in ("color", "brush_size", "is_eraser", "brush_style"):
+            props[key] = self.state.properties[key]
 
     def render(self) -> None:  # pragma: no cover
         """Render brush controls."""
@@ -549,11 +569,14 @@ class BrushWidget(Widget):
         imgui.text("Brush Settings")
         imgui.separator()
 
+        _any_changed = False
+
         imgui.push_item_width(160)
         imgui.set_next_item_width(160)
         changed, new_color = imgui.color_picker4("##color", color)
         if changed:
             self.state.properties["color"] = new_color
+            _any_changed = True
         imgui.pop_item_width()
 
         imgui.push_item_width(150)
@@ -561,6 +584,7 @@ class BrushWidget(Widget):
         changed, new_eraser = imgui.checkbox("Eraser", is_eraser)
         if changed:
             self.state.properties["is_eraser"] = new_eraser
+            _any_changed = True
         imgui.pop_item_width()
 
         style_options: list[tuple[str, str]] = [
@@ -578,12 +602,14 @@ class BrushWidget(Widget):
         )
         if changed:
             self.state.properties["brush_style"] = style_values[new_style_idx]
+            _any_changed = True
 
         imgui.push_item_width(150)
         imgui.set_next_item_width(150)
         changed, new_size = imgui.slider_float("##brush_size", brush_size, 1.0, 50.0)
         if changed:
             self.state.properties["brush_size"] = new_size
+            _any_changed = True
         imgui.pop_item_width()
 
         imgui.text("Line Width")
@@ -592,6 +618,10 @@ class BrushWidget(Widget):
         )
         if changed:
             self.state.properties["line_width"] = new_line_width
+            _any_changed = True
+
+        if _any_changed:
+            self._sync_to_drawing()
 
         imgui.separator()
         imgui.text("Preview")
@@ -645,7 +675,7 @@ class CanvasMenuWidget(Widget):
     def render(self) -> None:  # pragma: no cover
         """Render the canvas context menu.
 
-        Opens via ImGui's named popup API on right-click anywhere in the
+        Opens via begin_popup_context_window on right-click anywhere in the
         current window. Menu items invoke registered callbacks.
         """
         if not self.state.visible:
@@ -653,12 +683,7 @@ class CanvasMenuWidget(Widget):
 
         popup_id = "##canvas_menu_" + self.widget_id
 
-        if imgui.is_window_hovered() and imgui.is_mouse_clicked(
-            imgui.MouseButton_.right
-        ):
-            imgui.open_popup(popup_id)
-
-        if imgui.begin_popup(popup_id):
+        if imgui.begin_popup_context_window(popup_id):
             can_undo: bool = self.state.properties.get("can_undo", True)
             can_redo: bool = self.state.properties.get("can_redo", True)
             history_size: int = self.state.properties.get("history_size", 10)

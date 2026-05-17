@@ -1107,3 +1107,161 @@ class TestShapeValidation:
         result = server.drawing_import_strokes.fn(cid, "draw1", shapes=None)
 
         assert result["success"] is True
+
+
+# ---------------------------------------------------------------------------
+# End-to-end: full drawing workflow via MCP tools (Phase 2, issue #117)
+# ---------------------------------------------------------------------------
+
+
+class TestDrawingE2EWorkflow:
+    """End-to-end tests: create canvas, add drawing widget, draw, undo, redo, clear."""
+
+    def test_e2e_add_strokes_undo_redo_clear(self, cid):
+        """Full workflow: add strokes, undo removes last, redo restores, clear empties."""
+        server.create_canvas.fn(cid, auto_start=False)
+        server.add_drawing_area.fn(cid, "draw1")
+        canvas = server.canvas_manager.get_canvas(cid)
+        assert canvas is not None
+        widget = canvas.widget_registry.get("draw1")
+        assert isinstance(widget, DrawingWidget)
+
+        # Manually add two strokes (simulates mouse input)
+        widget.state.properties["strokes"] = [
+            {
+                "points": [(0, 0), (10, 10)],
+                "author": "user",
+                "timestamp": 0.0,
+                "tool": "brush",
+                "color": (1.0, 0.0, 0.0, 1.0),
+                "brush_size": 5.0,
+                "brush_style": "solid",
+            },
+            {
+                "points": [(20, 20), (30, 30)],
+                "author": "user",
+                "timestamp": 0.1,
+                "tool": "brush",
+                "color": (0.0, 1.0, 0.0, 1.0),
+                "brush_size": 5.0,
+                "brush_style": "solid",
+            },
+        ]
+
+        assert len(widget.state.properties["strokes"]) == 2
+
+        # undo removes last stroke
+        result = server.drawing_undo.fn(cid, "draw1")
+        assert result["success"] is True
+        assert len(widget.state.properties["strokes"]) == 1
+        assert len(widget.state.properties["redo_stack"]) == 1
+
+        # redo restores it
+        result = server.drawing_redo.fn(cid, "draw1")
+        assert result["success"] is True
+        assert len(widget.state.properties["strokes"]) == 2
+        assert len(widget.state.properties["redo_stack"]) == 0
+
+        # clear removes everything
+        result = server.drawing_clear.fn(cid, "draw1")
+        assert result["success"] is True
+        assert widget.state.properties["strokes"] == []
+        assert widget.state.properties["shapes"] == []
+        assert widget.state.properties["annotations"] == []
+
+    def test_e2e_add_shape_and_text_via_mcp(self, cid):
+        """Add shape and text annotation via MCP tools and verify state."""
+        server.create_canvas.fn(cid, auto_start=False)
+        server.add_drawing_area.fn(cid, "draw1")
+        canvas = server.canvas_manager.get_canvas(cid)
+        widget = canvas.widget_registry.get("draw1")
+        assert isinstance(widget, DrawingWidget)
+
+        result = server.drawing_add_shape.fn(
+            cid,
+            "draw1",
+            "rect",
+            x1=0.0,
+            y1=0.0,
+            x2=100.0,
+            y2=50.0,
+            color=[0.0, 1.0, 0.0, 1.0],
+        )
+        assert result["success"] is True
+        assert len(widget.state.properties["shapes"]) == 1
+        assert widget.state.properties["shapes"][0]["type"] == "rect"
+
+        result = server.drawing_add_text.fn(cid, "draw1", x=10.0, y=10.0, text="hello")
+        assert result["success"] is True
+        assert len(widget.state.properties["annotations"]) == 1
+        assert widget.state.properties["annotations"][0]["text"] == "hello"
+
+    def test_e2e_brush_controls_link_syncs_state(self, cid):
+        """BrushWidget linked to DrawingWidget propagates property changes."""
+        server.create_canvas.fn(cid, auto_start=False)
+        server.add_drawing_area.fn(cid, "draw1")
+        server.add_brush_controls.fn(
+            cid, "brush1", color="#0000FF", drawing_widget_id="draw1"
+        )
+        canvas = server.canvas_manager.get_canvas(cid)
+        brush = canvas.widget_registry.get("brush1")
+        drawing = canvas.widget_registry.get("draw1")
+        assert isinstance(drawing, DrawingWidget)
+
+        # Simulate property update via BrushWidget state (as if UI changed it)
+        brush.state.properties["color"] = (0.0, 0.0, 1.0, 1.0)
+        brush.state.properties["brush_size"] = 12.0
+        brush.state.properties["is_eraser"] = True
+        brush.state.properties["brush_style"] = "dashed"
+        brush._sync_to_drawing()
+
+        assert drawing.state.properties["color"] == (0.0, 0.0, 1.0, 1.0)
+        assert drawing.state.properties["brush_size"] == 12.0
+        assert drawing.state.properties["is_eraser"] is True
+        assert drawing.state.properties["brush_style"] == "dashed"
+
+    def test_e2e_undo_redo_boundary_conditions(self, cid):
+        """Undo on empty canvas and redo on empty redo stack are safe no-ops."""
+        server.create_canvas.fn(cid, auto_start=False)
+        server.add_drawing_area.fn(cid, "draw1")
+
+        result = server.drawing_undo.fn(cid, "draw1")
+        assert result["success"] is True
+
+        result = server.drawing_redo.fn(cid, "draw1")
+        assert result["success"] is True
+
+    def test_e2e_clear_resets_redo_stack(self, cid):
+        """Clear wipes the redo stack as well as strokes/shapes/annotations."""
+        server.create_canvas.fn(cid, auto_start=False)
+        server.add_drawing_area.fn(cid, "draw1")
+        canvas = server.canvas_manager.get_canvas(cid)
+        widget = canvas.widget_registry.get("draw1")
+
+        widget.state.properties["strokes"] = [
+            {
+                "points": [(0, 0)],
+                "author": "user",
+                "timestamp": 0.0,
+                "tool": "brush",
+                "color": (1.0, 0.0, 0.0, 1.0),
+                "brush_size": 5.0,
+                "brush_style": "solid",
+            }
+        ]
+        widget.state.properties["redo_stack"] = [
+            {
+                "points": [(5, 5)],
+                "author": "user",
+                "timestamp": 0.0,
+                "tool": "brush",
+                "color": (1.0, 0.0, 0.0, 1.0),
+                "brush_size": 5.0,
+                "brush_style": "solid",
+            }
+        ]
+
+        server.drawing_clear.fn(cid, "draw1")
+
+        assert widget.state.properties["strokes"] == []
+        assert widget.state.properties["redo_stack"] == []
