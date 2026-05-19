@@ -159,7 +159,7 @@ wheels = [
 
 [[package]]
 name = "champi-imgui"
-version = "1.9.1"
+version = "1.15.0"
 source = { editable = "." }
 dependencies = [
     { name = "blinker" },

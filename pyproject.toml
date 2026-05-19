@@ -52,7 +52,14 @@ dev = [
     "genbadge[coverage]>=1.1.0",
 ]
 
-# All features
+# Ecosystem integration (champi-signals + champi-ipc)
+# Install with: uv sync --extra ecosystem
+ecosystem = [
+    "champi-signals",
+    "champi-ipc",
+]
+
+# All features (ecosystem extras installed separately: uv sync --extra ecosystem)
 all = [
     "champi-imgui[dev]",
 ]
@@ -77,6 +84,10 @@ allow-direct-references = true
 package = true
 no-build-isolation = false
 managed = true
+
+[tool.uv.sources]
+champi-signals = { path = "../champi-signals" }
+champi-ipc = { path = "../champi-ipc" }
 
 # Ruff configuration
 [tool.ruff]
@@ -148,6 +159,8 @@ module = [
     "imgui_bundle.*",
     "pyglm.*",
     "champi_gen_ui.*",
+    "champi_signals.*",
+    "champi_ipc.*",
     "pytest",
     "_pytest.*",
     "mss.*",
