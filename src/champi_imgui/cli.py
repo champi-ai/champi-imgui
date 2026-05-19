@@ -1,6 +1,18 @@
-"""CLI entry point for champi-imgui MCP server."""
+"""CLI entry point for champi-imgui MCP server.
+
+Required environment variables for canvas rendering:
+  DISPLAY        - X11 display socket (e.g. :0 or :1)
+  XAUTHORITY     - X11 auth cookie file (e.g. /home/user/.Xauthority)
+  WAYLAND_DISPLAY - Wayland socket (alternative to DISPLAY on Wayland sessions)
+
+When running as a systemd service, add to the [Service] section:
+  Environment="DISPLAY=:0"
+  Environment="XAUTHORITY=/home/YOUR_USER/.Xauthority"
+Or use: PassEnvironment=DISPLAY XAUTHORITY WAYLAND_DISPLAY
+"""
 
 import atexit
+import os
 import signal
 import sys
 
@@ -34,6 +46,13 @@ def main() -> None:
     )
 
     logger.info("Starting champi-imgui MCP server...")
+
+    if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+        logger.warning(
+            "Neither DISPLAY nor WAYLAND_DISPLAY is set — canvas windows will likely "
+            "fail to render. Set DISPLAY=:0 or ensure the display server environment "
+            "is propagated to this process."
+        )
 
     # Register cleanup handlers
     atexit.register(cleanup)

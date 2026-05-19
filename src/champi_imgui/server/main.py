@@ -4,6 +4,8 @@ Provides MCP tools for creating and managing Canvas windows and widgets
 through shared memory IPC.
 """
 
+import os
+import time
 from typing import Any
 
 from fastmcp import FastMCP
@@ -108,6 +110,19 @@ from champi_imgui.widgets.slider import (
     DragIntWidget,
     SliderFloatWidget,
     SliderIntWidget,
+)
+
+# Log display and graphics env vars at import time for render diagnostics
+_SERVER_START_TIME = time.monotonic()
+logger.info(
+    "Display environment: DISPLAY={} WAYLAND_DISPLAY={} XDG_SESSION_TYPE={} "
+    "LIBGL_ALWAYS_SOFTWARE={} XAUTHORITY={}".format(
+        os.environ.get("DISPLAY"),
+        os.environ.get("WAYLAND_DISPLAY"),
+        os.environ.get("XDG_SESSION_TYPE"),
+        os.environ.get("LIBGL_ALWAYS_SOFTWARE"),
+        os.environ.get("XAUTHORITY"),
+    )
 )
 
 # Global canvas manager (single instance for all MCP tool calls)
@@ -484,6 +499,66 @@ def shutdown_canvas(canvas_id: str) -> dict[str, Any]:
             "success": False,
             "error": str(e),
         }
+
+
+@mcp.tool()
+def get_render_error(canvas_id: str) -> dict[str, Any]:
+    """Return the last exception from the render thread for a canvas, or null if healthy.
+
+    Args:
+        canvas_id: Canvas identifier
+
+    Returns:
+        Dict with error string and type, or null values if no error has occurred
+    """
+    try:
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if canvas is None:
+            return {"success": False, "error": f"Canvas '{canvas_id}' not found"}
+        err = canvas._render_error
+        return {
+            "success": True,
+            "data": {
+                "canvas_id": canvas_id,
+                "error": str(err) if err is not None else None,
+                "error_type": type(err).__name__ if err is not None else None,
+            },
+        }
+    except Exception as e:
+        logger.error(f"Error getting render error for '{canvas_id}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def get_render_health(canvas_id: str) -> dict[str, Any]:
+    """Return render thread health for a canvas: thread alive status and last error.
+
+    Args:
+        canvas_id: Canvas identifier
+
+    Returns:
+        Dict with thread_alive, is_healthy, and last_error fields
+    """
+    try:
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if canvas is None:
+            return {"success": False, "error": f"Canvas '{canvas_id}' not found"}
+        thread_alive = (
+            canvas._render_thread is not None and canvas._render_thread.is_alive()
+        )
+        err = canvas._render_error
+        return {
+            "success": True,
+            "data": {
+                "canvas_id": canvas_id,
+                "thread_alive": thread_alive,
+                "is_healthy": canvas.is_render_healthy(),
+                "last_error": str(err) if err is not None else None,
+            },
+        }
+    except Exception as e:
+        logger.error(f"Error getting render health for '{canvas_id}': {e}")
+        return {"success": False, "error": str(e)}
 
 
 # ==============================================================================
