@@ -20,31 +20,33 @@ MAX_WIDGET_TYPE_SIZE = 32
 PAD_CHAR = b"#"
 
 # Struct definitions
-# Format: '=' (native byte order), 'Q' (8-byte unsigned long), 'B' (1-byte unsigned char)
-HEADER_STRUCT = struct.Struct("=QB")  # seq_num + command_type
+# Explicit little-endian ('<') ensures consistent wire format on x86-64 and ARM64 (Apple Silicon).
+# '3x' before II pads to 4-byte alignment (offset 73 → 76) so integer fields never
+# land on a misaligned boundary on strict-alignment architectures.
+HEADER_STRUCT = struct.Struct("<QB")  # seq_num + command_type
 
 CLEAR_CANVAS_STRUCT = struct.Struct(
-    f"=QB{MAX_CANVAS_ID_SIZE}s"
+    f"<QB{MAX_CANVAS_ID_SIZE}s"
 )  # seq_num + cmd_type + canvas_id
 
 UPDATE_TITLE_STRUCT = struct.Struct(
-    f"=QB{MAX_CANVAS_ID_SIZE}s{MAX_TITLE_SIZE}s"
+    f"<QB{MAX_CANVAS_ID_SIZE}s{MAX_TITLE_SIZE}s"
 )  # seq_num + cmd_type + canvas_id + title
 
 UPDATE_SIZE_STRUCT = struct.Struct(
-    f"=QB{MAX_CANVAS_ID_SIZE}sII"
-)  # seq_num + cmd_type + canvas_id + width + height
+    f"<QB{MAX_CANVAS_ID_SIZE}s3xII"
+)  # seq_num + cmd_type + canvas_id + (3 pad bytes) + width + height
 
 SHUTDOWN_STRUCT = struct.Struct(
-    f"=QB{MAX_CANVAS_ID_SIZE}s"
+    f"<QB{MAX_CANVAS_ID_SIZE}s"
 )  # seq_num + cmd_type + canvas_id
 
 # Placeholder for Stage 6
 ADD_WIDGET_STRUCT = struct.Struct(
-    f"=QB{MAX_CANVAS_ID_SIZE}s{MAX_WIDGET_ID_SIZE}s{MAX_WIDGET_TYPE_SIZE}s"
+    f"<QB{MAX_CANVAS_ID_SIZE}s{MAX_WIDGET_ID_SIZE}s{MAX_WIDGET_TYPE_SIZE}s"
 )  # seq_num + cmd_type + canvas_id + widget_id + widget_type
 
-ACK_STRUCT = struct.Struct("=Q")  # seq_num only
+ACK_STRUCT = struct.Struct("<Q")  # seq_num only
 
 
 @dataclass
