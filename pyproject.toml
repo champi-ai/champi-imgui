@@ -53,16 +53,15 @@ dev = [
 ]
 
 # Ecosystem integration (champi-signals + champi-ipc)
+# Install with: uv sync --extra ecosystem
 ecosystem = [
-    "champi-signals @ ../champi-signals",
-    "champi-ipc @ ../champi-ipc",
+    "champi-signals",
+    "champi-ipc",
 ]
 
-# All features
+# All features (ecosystem extras installed separately: uv sync --extra ecosystem)
 all = [
     "champi-imgui[dev]",
-    "champi-signals @ ../champi-signals",
-    "champi-ipc @ ../champi-ipc",
 ]
 
 [project.urls]
@@ -85,6 +84,10 @@ allow-direct-references = true
 package = true
 no-build-isolation = false
 managed = true
+
+[tool.uv.sources]
+champi-signals = { path = "../champi-signals" }
+champi-ipc = { path = "../champi-ipc" }
 
 # Ruff configuration
 [tool.ruff]
