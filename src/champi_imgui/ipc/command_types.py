@@ -12,10 +12,10 @@ class CommandType(IntEnum):
 
     # Canvas management
     CREATE_CANVAS = 1  # Initialize new canvas (placeholder, canvas already exists)
-    CLEAR_CANVAS = 2   # Clear all widgets from canvas
-    UPDATE_TITLE = 3   # Update canvas title only
-    UPDATE_SIZE = 4    # Update canvas size (width + height together)
-    SHUTDOWN = 5       # Gracefully shutdown canvas
+    CLEAR_CANVAS = 2  # Clear all widgets from canvas
+    UPDATE_TITLE = 3  # Update canvas title only
+    UPDATE_SIZE = 4  # Update canvas size (width + height together)
+    SHUTDOWN = 5  # Gracefully shutdown canvas
 
     # Widget operations (placeholders for Stage 6)
     ADD_WIDGET = 10  # Add widget to canvas
