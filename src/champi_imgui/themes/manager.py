@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any
 
 from imgui_bundle import imgui
 from loguru import logger
@@ -173,6 +174,13 @@ class ThemeManager:
     def list_themes(self) -> list[str]:
         """List all registered theme names."""
         return list(self.themes.keys())
+
+    def to_diagnostics(self) -> dict[str, Any]:
+        """Return a snapshot of theme manager state for diagnostics."""
+        return {
+            "current": self.current_theme.name if self.current_theme else None,
+            "available": list(self.themes.keys()),
+        }
 
     def _apply_colors(self, colors: ThemeColors) -> None:
         style = imgui.get_style()

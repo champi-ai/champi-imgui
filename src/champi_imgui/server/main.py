@@ -11,11 +11,13 @@ from typing import Any
 from fastmcp import FastMCP
 from loguru import logger
 
+import champi_imgui
 from champi_imgui.core.binding import BindingManager, DataStore
 from champi_imgui.core.canvas import CanvasManager
 from champi_imgui.core.codegen import CodeGenerator, TemplateCodeGenerator
 from champi_imgui.core.events import EventQueue
 from champi_imgui.core.serialization import TemplateManager, UIExporter, UIImporter
+from champi_imgui.core.state import canvas_updated, widget_created, widget_updated
 from champi_imgui.core.widget import set_event_queue
 from champi_imgui.extensions.animation import AnimationManager, EasingFunction
 from champi_imgui.extensions.file_dialog import (
@@ -558,6 +560,117 @@ def get_render_health(canvas_id: str) -> dict[str, Any]:
         }
     except Exception as e:
         logger.error(f"Error getting render health for '{canvas_id}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def get_system_state() -> dict[str, Any]:
+    """Return a full snapshot of the champi-imgui server's internal state.
+
+    Includes version, uptime, canvas list, all manager diagnostics, and
+    blinker signal receiver counts. Useful for observability and debugging.
+
+    Returns:
+        Dict with version, uptime_seconds, canvas_count, canvases list,
+        managers dict, and signals dict.
+    """
+    try:
+        canvas_ids = canvas_manager.list_canvases()
+        canvases = []
+        for cid in canvas_ids:
+            canvas = canvas_manager.get_canvas(cid)
+            if canvas is None:
+                continue
+            canvases.append(
+                {
+                    "canvas_id": cid,
+                    "title": canvas.state.title,
+                    "size": list(canvas.state.size),
+                    "widget_count": len(canvas.widget_registry.get_all()),
+                    "is_healthy": canvas.is_render_healthy(),
+                    "last_error": str(canvas._render_error)
+                    if canvas._render_error is not None
+                    else None,
+                }
+            )
+
+        return {
+            "success": True,
+            "data": {
+                "version": champi_imgui.__version__,
+                "uptime_seconds": round(time.monotonic() - _SERVER_START_TIME, 2),
+                "canvas_count": len(canvas_ids),
+                "canvases": canvases,
+                "managers": {
+                    "animations": animation_manager.to_diagnostics(),
+                    "data_store": data_store.to_diagnostics(),
+                    "bindings": binding_manager.to_diagnostics(),
+                    "layout": layout_manager.to_diagnostics(),
+                    "themes": theme_manager.to_diagnostics(),
+                    "templates": template_manager.to_diagnostics(),
+                    "notifications": notification_manager.to_diagnostics(),
+                    "events": event_queue.to_diagnostics(),
+                },
+                "signals": {
+                    "canvas_updated": len(canvas_updated.receivers),
+                    "widget_created": len(widget_created.receivers),
+                    "widget_updated": len(widget_updated.receivers),
+                },
+            },
+        }
+    except Exception as e:
+        logger.error(f"Error getting system state: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def get_canvas_diagnostics(canvas_id: str) -> dict[str, Any]:
+    """Return detailed diagnostics for a specific canvas.
+
+    Includes canvas state, widget list, and render thread health.
+
+    Args:
+        canvas_id: Canvas identifier
+
+    Returns:
+        Dict with canvas state snapshot and render health details.
+    """
+    try:
+        canvas = canvas_manager.get_canvas(canvas_id)
+        if canvas is None:
+            return {"success": False, "error": f"Canvas '{canvas_id}' not found"}
+
+        widgets = []
+        for wid, widget in canvas.widget_registry.get_all().items():
+            widgets.append(
+                {
+                    "widget_id": wid,
+                    "widget_type": widget.__class__.__name__,
+                    "visible": widget.state.visible,
+                    "enabled": widget.state.enabled,
+                }
+            )
+
+        return {
+            "success": True,
+            "data": {
+                "canvas_id": canvas_id,
+                "title": canvas.state.title,
+                "size": list(canvas.state.size),
+                "widget_count": len(widgets),
+                "widgets": widgets,
+                "render": {
+                    "is_healthy": canvas.is_render_healthy(),
+                    "thread_alive": canvas._render_thread is not None
+                    and canvas._render_thread.is_alive(),
+                    "last_error": str(canvas._render_error)
+                    if canvas._render_error is not None
+                    else None,
+                },
+            },
+        }
+    except Exception as e:
+        logger.error(f"Error getting canvas diagnostics for '{canvas_id}': {e}")
         return {"success": False, "error": str(e)}
 
 

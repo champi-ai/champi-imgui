@@ -125,3 +125,11 @@ class EventQueue:
         """
         with self._lock:
             return {k: list(v) for k, v in self._subscriptions.items()}
+
+    def to_diagnostics(self) -> dict[str, Any]:
+        """Return a snapshot of event queue state for diagnostics."""
+        with self._lock:
+            return {
+                "pending_count": len(self._queue),
+                "subscription_count": len(self._subscriptions),
+            }

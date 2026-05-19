@@ -1,6 +1,7 @@
 """Layout manager for arranging widgets."""
 
 from enum import Enum
+from typing import Any
 
 from imgui_bundle import imgui
 from loguru import logger
@@ -129,6 +130,14 @@ class LayoutManager:
     def set_next_item_width(self, width: float) -> None:
         """Set width for next item only."""
         imgui.set_next_item_width(width)
+
+    def to_diagnostics(self) -> dict[str, Any]:
+        """Return a snapshot of layout state for diagnostics."""
+        return {
+            "mode": self.mode.value,
+            "spacing": self.spacing,
+            "grid_columns": self.grid_columns,
+        }
 
 
 class AutoLayout:

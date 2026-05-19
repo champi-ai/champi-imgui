@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 from imgui_bundle import imgui
 from loguru import logger
@@ -131,6 +132,18 @@ class NotificationManager:
                     notification.visible = False
         imgui.end()
         imgui.pop_style_color(2)
+
+    def to_diagnostics(self) -> dict[str, Any]:
+        """Return a snapshot of notification state for diagnostics."""
+        recent = self.notifications[-5:] if self.notifications else []
+        return {
+            "queued_count": len(self.notifications),
+            "max_notifications": self.max_notifications,
+            "recent": [
+                {"title": n.title, "message": n.message, "type": n.type.value}
+                for n in recent
+            ],
+        }
 
     def _get_notification_colors(
         self, type: NotificationType
