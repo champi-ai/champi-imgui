@@ -52,9 +52,17 @@ dev = [
     "genbadge[coverage]>=1.1.0",
 ]
 
+# Ecosystem integration (champi-signals + champi-ipc)
+ecosystem = [
+    "champi-signals @ ../champi-signals",
+    "champi-ipc @ ../champi-ipc",
+]
+
 # All features
 all = [
     "champi-imgui[dev]",
+    "champi-signals @ ../champi-signals",
+    "champi-ipc @ ../champi-ipc",
 ]
 
 [project.urls]
@@ -148,6 +156,8 @@ module = [
     "imgui_bundle.*",
     "pyglm.*",
     "champi_gen_ui.*",
+    "champi_signals.*",
+    "champi_ipc.*",
     "pytest",
     "_pytest.*",
     "mss.*",

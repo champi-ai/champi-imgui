@@ -561,8 +561,10 @@ class Canvas:
             try:
                 if command_data.command_type == CommandType.CLEAR_CANVAS:
                     self._handle_clear_canvas(command_data.data)
-                elif command_data.command_type == CommandType.UPDATE_STATE:
-                    self._handle_update_state(command_data.data)
+                elif command_data.command_type == CommandType.UPDATE_TITLE:
+                    self._handle_update_title(command_data.data)
+                elif command_data.command_type == CommandType.UPDATE_SIZE:
+                    self._handle_update_size(command_data.data)
                 elif command_data.command_type == CommandType.SHUTDOWN:
                     self._handle_shutdown(command_data.data)
                 elif command_data.command_type == CommandType.REMOVE_WIDGET:
@@ -591,22 +593,29 @@ class Canvas:
         self.widget_registry.clear()
         logger.info(f"Clearing canvas '{canvas_id}'")
 
-    def _handle_update_state(self, data: dict[str, Any]) -> None:
-        """Handle UPDATE_STATE command."""
+    def _handle_update_title(self, data: dict[str, Any]) -> None:
+        """Handle UPDATE_TITLE command."""
         canvas_id = data.get("canvas_id")
         if canvas_id != self.state.canvas_id:
             logger.warning(
-                f"Update command for wrong canvas: {canvas_id} (expected {self.state.canvas_id})"
+                f"Update title command for wrong canvas: {canvas_id} (expected {self.state.canvas_id})"
             )
             return
 
-        # Update state
-        if "title" in data:
-            self.state.title = data["title"]
-        if "width" in data and "height" in data:
-            self.state.size = (data["width"], data["height"])
+        self.state.title = data["title"]
+        logger.info(f"Updated title for canvas '{canvas_id}'")
 
-        logger.info(f"Updated state for canvas '{canvas_id}'")
+    def _handle_update_size(self, data: dict[str, Any]) -> None:
+        """Handle UPDATE_SIZE command."""
+        canvas_id = data.get("canvas_id")
+        if canvas_id != self.state.canvas_id:
+            logger.warning(
+                f"Update size command for wrong canvas: {canvas_id} (expected {self.state.canvas_id})"
+            )
+            return
+
+        self.state.size = (data["width"], data["height"])
+        logger.info(f"Updated size for canvas '{canvas_id}'")
 
     def _handle_remove_widget(self, data: dict[str, Any]) -> None:
         """Handle REMOVE_WIDGET command."""

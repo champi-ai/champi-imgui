@@ -354,7 +354,8 @@ def update_canvas_state(
 ) -> dict[str, Any]:
     """Update canvas state (title, size).
 
-    Sends an UPDATE_STATE command via shared memory to the canvas render thread.
+    Sends UPDATE_TITLE and/or UPDATE_SIZE commands via shared memory to the
+    canvas render thread. At least one of title or width+height must be provided.
 
     Args:
         canvas_id: Canvas identifier
@@ -384,35 +385,45 @@ def update_canvas_state(
                 "error": "width and height must both be provided to resize the canvas",
             }
 
-        # Prepare command data
-        cmd_data: dict[str, Any] = {"canvas_id": canvas_id}
-        if title is not None:
-            cmd_data["title"] = title
-        if width is not None and height is not None:
-            cmd_data["width"] = width
-            cmd_data["height"] = height
+        sent: list[str] = []
+        last_seq: int = 0
 
-        # Send command via shared memory
         shm_manager = SharedMemoryManager(name_prefix=f"canvas_{canvas_id}")
         try:
             shm_manager.attach_regions()
 
-            seq_num = shm_manager.write_command(CommandType.UPDATE_STATE, **cmd_data)
+            if title is not None:
+                last_seq = shm_manager.write_command(
+                    CommandType.UPDATE_TITLE, canvas_id=canvas_id, title=title
+                )
+                logger.info(
+                    f"Sent UPDATE_TITLE command to '{canvas_id}' (seq={last_seq})"
+                )
+                sent.append("title")
 
-            logger.info(f"Sent UPDATE_STATE command to '{canvas_id}' (seq={seq_num})")
-
-            return {
-                "success": True,
-                "data": {
-                    "canvas_id": canvas_id,
-                    "command": "UPDATE_STATE",
-                    "seq_num": seq_num,
-                    "updates": cmd_data,
-                },
-            }
+            if width is not None and height is not None:
+                last_seq = shm_manager.write_command(
+                    CommandType.UPDATE_SIZE,
+                    canvas_id=canvas_id,
+                    width=width,
+                    height=height,
+                )
+                logger.info(
+                    f"Sent UPDATE_SIZE command to '{canvas_id}' (seq={last_seq})"
+                )
+                sent.append("size")
 
         finally:
             shm_manager.cleanup()
+
+        return {
+            "success": True,
+            "data": {
+                "canvas_id": canvas_id,
+                "updates": sent,
+                "seq_num": last_seq,
+            },
+        }
 
     except Exception as e:
         logger.error(f"Error updating canvas state for '{canvas_id}': {e}")

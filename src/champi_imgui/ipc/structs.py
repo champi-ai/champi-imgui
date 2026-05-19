@@ -27,9 +27,13 @@ CLEAR_CANVAS_STRUCT = struct.Struct(
     f"=QB{MAX_CANVAS_ID_SIZE}s"
 )  # seq_num + cmd_type + canvas_id
 
-UPDATE_STATE_STRUCT = struct.Struct(
-    f"=QB{MAX_CANVAS_ID_SIZE}s{MAX_TITLE_SIZE}sII"
-)  # seq_num + cmd_type + canvas_id + title + width + height
+UPDATE_TITLE_STRUCT = struct.Struct(
+    f"=QB{MAX_CANVAS_ID_SIZE}s{MAX_TITLE_SIZE}s"
+)  # seq_num + cmd_type + canvas_id + title
+
+UPDATE_SIZE_STRUCT = struct.Struct(
+    f"=QB{MAX_CANVAS_ID_SIZE}sII"
+)  # seq_num + cmd_type + canvas_id + width + height
 
 SHUTDOWN_STRUCT = struct.Struct(
     f"=QB{MAX_CANVAS_ID_SIZE}s"
@@ -67,8 +71,10 @@ def get_struct_size(command_type: CommandType) -> int:
     """Get the size in bytes for a command type."""
     if command_type == CommandType.CLEAR_CANVAS:
         return CLEAR_CANVAS_STRUCT.size
-    elif command_type == CommandType.UPDATE_STATE:
-        return UPDATE_STATE_STRUCT.size
+    elif command_type == CommandType.UPDATE_TITLE:
+        return UPDATE_TITLE_STRUCT.size
+    elif command_type == CommandType.UPDATE_SIZE:
+        return UPDATE_SIZE_STRUCT.size
     elif command_type == CommandType.SHUTDOWN:
         return SHUTDOWN_STRUCT.size
     elif command_type == CommandType.ADD_WIDGET:
@@ -79,7 +85,8 @@ def get_struct_size(command_type: CommandType) -> int:
         # Default to largest struct
         return max(
             CLEAR_CANVAS_STRUCT.size,
-            UPDATE_STATE_STRUCT.size,
+            UPDATE_TITLE_STRUCT.size,
+            UPDATE_SIZE_STRUCT.size,
             SHUTDOWN_STRUCT.size,
             ADD_WIDGET_STRUCT.size,
         )
@@ -102,16 +109,24 @@ def pack_command(command_type: CommandType, seq_num: int, **kwargs: Any) -> byte
             seq_num, command_type, _pad_string(canvas_id, MAX_CANVAS_ID_SIZE)
         )
 
-    elif command_type == CommandType.UPDATE_STATE:
+    elif command_type == CommandType.UPDATE_TITLE:
         canvas_id = kwargs.get("canvas_id", "")
         title = kwargs.get("title", "")
-        width = kwargs.get("width", 800)
-        height = kwargs.get("height", 600)
-        return UPDATE_STATE_STRUCT.pack(
+        return UPDATE_TITLE_STRUCT.pack(
             seq_num,
             command_type,
             _pad_string(canvas_id, MAX_CANVAS_ID_SIZE),
             _pad_string(title, MAX_TITLE_SIZE),
+        )
+
+    elif command_type == CommandType.UPDATE_SIZE:
+        canvas_id = kwargs.get("canvas_id", "")
+        width = kwargs.get("width", 800)
+        height = kwargs.get("height", 600)
+        return UPDATE_SIZE_STRUCT.pack(
+            seq_num,
+            command_type,
+            _pad_string(canvas_id, MAX_CANVAS_ID_SIZE),
             width,
             height,
         )
@@ -162,21 +177,28 @@ def unpack_command(data: bytes) -> CommandData:
             data={"canvas_id": _unpad_string(canvas_id_bytes)},
         )
 
-    elif command_type == CommandType.UPDATE_STATE:
-        (
-            seq_num,
-            cmd_type_int,
-            canvas_id_bytes,
-            title_bytes,
-            width,
-            height,
-        ) = UPDATE_STATE_STRUCT.unpack(data)
+    elif command_type == CommandType.UPDATE_TITLE:
+        seq_num, cmd_type_int, canvas_id_bytes, title_bytes = UPDATE_TITLE_STRUCT.unpack(
+            data
+        )
         return CommandData(
             command_type=command_type,
             seq_num=seq_num,
             data={
                 "canvas_id": _unpad_string(canvas_id_bytes),
                 "title": _unpad_string(title_bytes),
+            },
+        )
+
+    elif command_type == CommandType.UPDATE_SIZE:
+        seq_num, cmd_type_int, canvas_id_bytes, width, height = UPDATE_SIZE_STRUCT.unpack(
+            data
+        )
+        return CommandData(
+            command_type=command_type,
+            seq_num=seq_num,
+            data={
+                "canvas_id": _unpad_string(canvas_id_bytes),
                 "width": width,
                 "height": height,
             },
