@@ -243,7 +243,9 @@ class AnimationManager:
         """Return a snapshot of animation state for diagnostics."""
         snapshot = list(self.animations.values())
         return {
-            "active_count": sum(1 for a in snapshot if a.state == AnimationState.RUNNING),
+            "active_count": sum(
+                1 for a in snapshot if a.state == AnimationState.RUNNING
+            ),
             "total_count": len(snapshot),
             "animations": [
                 {

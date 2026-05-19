@@ -180,8 +180,8 @@ def unpack_command(data: bytes) -> CommandData:
         )
 
     elif command_type == CommandType.UPDATE_TITLE:
-        seq_num, cmd_type_int, canvas_id_bytes, title_bytes = UPDATE_TITLE_STRUCT.unpack(
-            data
+        seq_num, cmd_type_int, canvas_id_bytes, title_bytes = (
+            UPDATE_TITLE_STRUCT.unpack(data)
         )
         return CommandData(
             command_type=command_type,
@@ -193,8 +193,8 @@ def unpack_command(data: bytes) -> CommandData:
         )
 
     elif command_type == CommandType.UPDATE_SIZE:
-        seq_num, cmd_type_int, canvas_id_bytes, width, height = UPDATE_SIZE_STRUCT.unpack(
-            data
+        seq_num, cmd_type_int, canvas_id_bytes, width, height = (
+            UPDATE_SIZE_STRUCT.unpack(data)
         )
         return CommandData(
             command_type=command_type,
