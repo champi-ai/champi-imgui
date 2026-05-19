@@ -105,6 +105,17 @@ class DataStore:
         except (KeyError, TypeError):
             return default
 
+    def to_diagnostics(self) -> dict[str, Any]:
+        """Return a snapshot of data store state for diagnostics."""
+        return {
+            "key_count": len(self._data),
+            "signal_path_count": len(self._signals),
+            "signal_paths": [
+                {"path": path, "receiver_count": len(sig.receivers)}
+                for path, sig in self._signals.items()
+            ],
+        }
+
 
 class BindingManager:
     """Manager for widget data bindings."""
@@ -167,6 +178,13 @@ class BindingManager:
     def clear(self) -> None:
         """Clear all bindings."""
         self.bindings.clear()
+
+    def to_diagnostics(self) -> dict[str, Any]:
+        """Return a snapshot of binding state for diagnostics."""
+        return {
+            "binding_count": sum(len(v) for v in self.bindings.values()),
+            "paths": list(self.bindings.keys()),
+        }
 
     def _on_data_change(self, sender: object, **kwargs: Any) -> None:
         path = kwargs.get("path")

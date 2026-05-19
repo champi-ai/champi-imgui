@@ -4,6 +4,7 @@ import math
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 from imgui_bundle import imgui
 from loguru import logger
@@ -237,3 +238,22 @@ class AnimationManager:
     def clear(self) -> None:
         """Remove all animations."""
         self.animations.clear()
+
+    def to_diagnostics(self) -> dict[str, Any]:
+        """Return a snapshot of animation state for diagnostics."""
+        snapshot = list(self.animations.values())
+        return {
+            "active_count": sum(1 for a in snapshot if a.state == AnimationState.RUNNING),
+            "total_count": len(snapshot),
+            "animations": [
+                {
+                    "name": a.name,
+                    "state": a.state.value,
+                    "easing": a.easing.value,
+                    "current_value": a.current_value,
+                    "duration": a.duration,
+                    "loop": a.loop,
+                }
+                for a in snapshot
+            ],
+        }

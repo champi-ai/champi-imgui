@@ -159,7 +159,7 @@ wheels = [
 
 [[package]]
 name = "champi-imgui"
-version = "1.15.0"
+version = "1.17.0"
 source = { editable = "." }
 dependencies = [
     { name = "blinker" },
@@ -197,6 +197,10 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
 ]
+ecosystem = [
+    { name = "champi-ipc" },
+    { name = "champi-signals" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -211,6 +215,8 @@ dev = [
 requires-dist = [
     { name = "blinker", specifier = ">=1.9.0" },
     { name = "champi-imgui", extras = ["dev"], marker = "extra == 'all'" },
+    { name = "champi-ipc", marker = "extra == 'ecosystem'", directory = "../champi-ipc" },
+    { name = "champi-signals", marker = "extra == 'ecosystem'", directory = "../champi-signals" },
     { name = "commitizen", marker = "extra == 'dev'", specifier = ">=3.0.0" },
     { name = "detect-secrets", marker = "extra == 'dev'", specifier = ">=1.4.0" },
     { name = "fastmcp", specifier = ">=2.12.0" },
@@ -230,7 +236,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8.0" },
     { name = "typing-extensions", specifier = ">=4.0.0" },
 ]
-provides-extras = ["dev", "all"]
+provides-extras = ["dev", "ecosystem", "all"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -239,6 +245,63 @@ dev = [
     { name = "pytest", specifier = ">=8.4.2" },
     { name = "pytest-asyncio", specifier = ">=1.2.0" },
     { name = "pytest-cov", specifier = ">=7.0.0" },
+]
+
+[[package]]
+name = "champi-ipc"
+version = "0.1.0"
+source = { directory = "../champi-ipc" }
+dependencies = [
+    { name = "blinker" },
+    { name = "click" },
+    { name = "loguru" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "black", marker = "extra == 'dev'", specifier = ">=24.0.0" },
+    { name = "blinker", specifier = ">=1.7.0" },
+    { name = "click", specifier = ">=8.1.0" },
+    { name = "loguru", specifier = ">=0.7.0" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8.0" },
+    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.6.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.1.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.2.0" },
+]
+provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "black", specifier = ">=26.3.1" }]
+
+[[package]]
+name = "champi-signals"
+version = "0.1.0"
+source = { directory = "../champi-signals" }
+dependencies = [
+    { name = "blinker" },
+    { name = "loguru" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "blinker", specifier = ">=1.7.0" },
+    { name = "commitizen", marker = "extra == 'dev'", specifier = ">=3.0.0" },
+    { name = "loguru", specifier = ">=0.7.0" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8.0" },
+    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.0.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.1.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8.0" },
+]
+provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+docs = [
+    { name = "mkdocs-material", specifier = ">=9.5" },
+    { name = "mkdocstrings-python", specifier = ">=1.8" },
 ]
 
 [[package]]

@@ -181,3 +181,10 @@ class TemplateManager:
         except Exception as e:
             logger.error(f"Error deleting template: {e}")
             return False
+
+    def to_diagnostics(self) -> dict[str, Any]:
+        """Return a snapshot of template state for diagnostics."""
+        saved: list[str] = []
+        if self.templates_dir.exists():
+            saved = [p.stem for p in self.templates_dir.glob("*.json")]
+        return {"saved": saved, "cached": list(self._cache.keys())}
