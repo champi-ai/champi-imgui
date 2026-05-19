@@ -66,6 +66,7 @@ class Canvas:
         # Thread control
         self._running = False
         self._render_thread: threading.Thread | None = None
+        self._render_error: Exception | None = None
 
         # X11 window ID, populated after the render thread initialises the window
         self._window_id: int | None = None
@@ -110,6 +111,15 @@ class Canvas:
         )
         self._render_thread.start()
         logger.info(f"Canvas '{self.state.canvas_id}' started in background thread")
+
+    def is_render_healthy(self) -> bool:
+        """Return True when the render thread is alive and has not crashed."""
+        return (
+            self._running
+            and self._render_thread is not None
+            and self._render_thread.is_alive()
+            and self._render_error is None
+        )
 
     def stop(self) -> None:
         """Stop canvas rendering and cleanup."""
@@ -209,7 +219,8 @@ class Canvas:
         try:
             hello_imgui.run(runner_params)
         except Exception as e:
-            logger.error(f"Error in render loop for '{self.state.canvas_id}': {e}")
+            self._render_error = e
+            logger.error(f"Render loop crashed for '{self.state.canvas_id}': {e}")
         finally:
             self._running = False
 
