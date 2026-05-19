@@ -227,6 +227,21 @@ def create_canvas(
             auto_start=auto_start,
         )
 
+        if auto_start:
+            # Poll until the render thread is healthy or 2s elapses
+            deadline = time.monotonic() + 2.0
+            while time.monotonic() < deadline:
+                if canvas.is_render_healthy():
+                    break
+                time.sleep(0.05)
+            else:
+                err = canvas._render_error
+                return {
+                    "success": False,
+                    "error": "Render thread did not start within 2s"
+                    + (f": {err}" if err else ""),
+                }
+
         logger.info(f"Created canvas '{canvas_id}' via MCP tool")
 
         return {
