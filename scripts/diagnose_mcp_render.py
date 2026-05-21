@@ -48,6 +48,7 @@ def _has_display() -> bool:
 # Canvas health check
 # ---------------------------------------------------------------------------
 
+
 def _check_canvas_health(canvas: object, wait_seconds: float = 3.0) -> dict:
     """Wait for the render thread and report health."""
     result: dict = {
@@ -74,6 +75,7 @@ def _check_canvas_health(canvas: object, wait_seconds: float = 3.0) -> dict:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def main() -> int:
     _report_env()
