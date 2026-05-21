@@ -8,7 +8,7 @@ import sys
 import time
 from pathlib import Path
 
-from champi_imgui.core.canvas import Canvas, CanvasManager
+from champi_imgui.core.canvas import CanvasManager
 from champi_imgui.widgets.basic import ButtonWidget, TextWidget
 from champi_imgui.widgets.container import WindowWidget
 

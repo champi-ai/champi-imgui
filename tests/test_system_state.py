@@ -1,7 +1,6 @@
-"""Tests for to_diagnostics() methods and system-state MCP tools (issues #135–#140)."""
+"""Tests for to_diagnostics() methods and system-state MCP tools (issues #135-#140)."""
 
 from unittest.mock import MagicMock, patch
-
 
 # ─────────────────────────── AnimationManager ────────────────────────────────
 
@@ -178,7 +177,7 @@ def test_template_manager_diagnostics_empty(tmp_path):
 
 
 def test_theme_manager_diagnostics_no_theme():
-    from champi_imgui.themes.manager import Theme, ThemeManager
+    from champi_imgui.themes.manager import ThemeManager
 
     mgr = ThemeManager()
     d = mgr.to_diagnostics()
