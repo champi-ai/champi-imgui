@@ -5,7 +5,7 @@ All tests use mocks — no display required.
 """
 
 import contextlib
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 

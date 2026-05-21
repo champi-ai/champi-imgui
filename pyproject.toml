@@ -86,8 +86,8 @@ no-build-isolation = false
 managed = true
 
 [tool.uv.sources]
-champi-signals = { path = "../champi-signals" }
-champi-ipc = { path = "../champi-ipc" }
+champi-signals = { git = "https://github.com/champi-ai/champi-signals" }
+champi-ipc = { git = "https://github.com/champi-ai/champi-ipc" }
 
 # Ruff configuration
 [tool.ruff]
