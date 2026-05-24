@@ -26,32 +26,35 @@ _CANVAS_ID = f"integ_{uuid.uuid4().hex[:8]}"
 @pytest.fixture(scope="module")
 def live_canvas():
     """Create one canvas for the whole module, shut it down at the end."""
-    import champi_imgui.server.main as server
+    from champi_imgui.api.server import create_mcp_app
 
-    result = server.create_canvas.fn(
+    mcp = create_mcp_app()
+    fn = mcp._tool_manager._tools
+
+    result = fn["create_canvas"].fn(
         canvas_id=_CANVAS_ID, title="Integration Test", width=640, height=480
     )
     assert result["success"] is True, f"create_canvas failed: {result.get('error')}"
-    canvas = server.canvas_manager.get_canvas(_CANVAS_ID)
-    yield canvas
-    server.shutdown_canvas.fn(_CANVAS_ID)
+    canvas = mcp._canvas_manager.get_canvas(_CANVAS_ID)
+    yield canvas, fn
+    fn["shutdown_canvas"].fn(_CANVAS_ID)
 
 
 def test_create_canvas_render_thread_healthy(live_canvas):
     """Render thread must be healthy after create_canvas returns."""
-    assert live_canvas.is_render_healthy(), "Render thread is not healthy"
+    canvas, _ = live_canvas
+    assert canvas.is_render_healthy(), "Render thread is not healthy"
 
 
 def test_create_canvas_screenshot_within_5s(live_canvas, tmp_path):
     """End-to-end: take screenshot of running canvas, assert valid PNG within 5s."""
-    import champi_imgui.server.main as server
-
+    _, fn = live_canvas
     out_path = str(tmp_path / "screenshot.png")
     deadline = time.monotonic() + 5.0
     screenshot_result = None
 
     while time.monotonic() < deadline:
-        screenshot_result = server.screenshot_canvas.fn(
+        screenshot_result = fn["screenshot_canvas"].fn(
             canvas_id=_CANVAS_ID, filepath=out_path
         )
         if screenshot_result.get("success"):

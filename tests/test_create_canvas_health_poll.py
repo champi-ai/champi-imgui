@@ -5,37 +5,40 @@ All tests use mocks — no display required.
 """
 
 import contextlib
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-import champi_imgui.server.main as server
+import champi_imgui.api.server as _srv_mod
+from champi_imgui.api.server import create_mcp_app
 from champi_imgui.core.canvas import CanvasManager
 
 
+def _fn(mcp, name):
+    return mcp._tool_manager._tools[name].fn
+
+
 @pytest.fixture(autouse=True)
-def fresh_canvas_manager(monkeypatch):
+def _cleanup():
     manager = CanvasManager()
-    original = server.canvas_manager
-    server.canvas_manager = manager
     yield manager
     for canvas in list(manager.canvases.values()):
         with contextlib.suppress(Exception):
             canvas.shm_manager.cleanup()
-    server.canvas_manager = original
 
 
-def test_create_canvas_already_exists(fresh_canvas_manager):
+def test_create_canvas_already_exists():
     """Returns error when canvas_id already registered."""
-    mock_canvas = MagicMock()
-    fresh_canvas_manager.canvases["dup"] = mock_canvas
+    manager = CanvasManager()
+    mcp = create_mcp_app(canvas_manager=manager)
+    manager.canvases["dup"] = MagicMock()
 
-    result = server.create_canvas.fn("dup")
+    result = _fn(mcp, "create_canvas")("dup")
     assert result["success"] is False
     assert "already exists" in result["error"]
 
 
-def test_create_canvas_auto_start_false_skips_poll(monkeypatch):
+def test_create_canvas_auto_start_false_skips_poll():
     """auto_start=False returns success without any health polling."""
     mock_canvas = MagicMock()
     mock_canvas.state.to_dict.return_value = {"canvas_id": "c1"}
@@ -43,14 +46,14 @@ def test_create_canvas_auto_start_false_skips_poll(monkeypatch):
     mock_mgr = MagicMock()
     mock_mgr.get_canvas.return_value = None
     mock_mgr.create_canvas.return_value = mock_canvas
-    monkeypatch.setattr(server, "canvas_manager", mock_mgr)
+    mcp = create_mcp_app(canvas_manager=mock_mgr)
 
-    result = server.create_canvas.fn("c1", auto_start=False)
+    result = _fn(mcp, "create_canvas")("c1", auto_start=False)
     assert result["success"] is True
     mock_canvas.is_render_healthy.assert_not_called()
 
 
-def test_create_canvas_healthy_on_first_poll(monkeypatch):
+def test_create_canvas_healthy_on_first_poll():
     """Returns success when render thread is healthy immediately."""
     mock_canvas = MagicMock()
     mock_canvas.state.to_dict.return_value = {"canvas_id": "c2"}
@@ -59,9 +62,9 @@ def test_create_canvas_healthy_on_first_poll(monkeypatch):
     mock_mgr = MagicMock()
     mock_mgr.get_canvas.return_value = None
     mock_mgr.create_canvas.return_value = mock_canvas
-    monkeypatch.setattr(server, "canvas_manager", mock_mgr)
+    mcp = create_mcp_app(canvas_manager=mock_mgr)
 
-    result = server.create_canvas.fn("c2", auto_start=True)
+    result = _fn(mcp, "create_canvas")("c2", auto_start=True)
     assert result["success"] is True
     assert result["data"]["canvas_id"] == "c2"
 
@@ -75,9 +78,8 @@ def test_create_canvas_timeout_returns_error(monkeypatch):
     mock_mgr = MagicMock()
     mock_mgr.get_canvas.return_value = None
     mock_mgr.create_canvas.return_value = mock_canvas
-    monkeypatch.setattr(server, "canvas_manager", mock_mgr)
+    mcp = create_mcp_app(canvas_manager=mock_mgr)
 
-    # Speed up the test: make monotonic advance past deadline immediately
     import time as _time
 
     call_count = {"n": 0}
@@ -86,15 +88,14 @@ def test_create_canvas_timeout_returns_error(monkeypatch):
 
     def fast_monotonic():
         call_count["n"] += 1
-        # First call returns start (sets deadline), subsequent calls skip past it
         if call_count["n"] <= 1:
             return start
         return start + 3.0
 
-    monkeypatch.setattr(server.time, "monotonic", fast_monotonic)
-    monkeypatch.setattr(server.time, "sleep", lambda _: None)
+    monkeypatch.setattr(_srv_mod.time, "monotonic", fast_monotonic)
+    monkeypatch.setattr(_srv_mod.time, "sleep", lambda _: None)
 
-    result = server.create_canvas.fn("c3", auto_start=True)
+    result = _fn(mcp, "create_canvas")("c3", auto_start=True)
     assert result["success"] is False
     assert "Render thread did not start" in result["error"]
     assert "GL init failed" in result["error"]

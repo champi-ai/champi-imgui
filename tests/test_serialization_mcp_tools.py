@@ -5,7 +5,49 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import champi_imgui.server.main as server
+import pytest
+
+import champi_imgui.api.server as _srv_mod
+from champi_imgui.api.server import create_mcp_app
+
+_DEFAULT_MCP = None
+
+
+class _Server:
+    """Proxy that exposes MCP tools and managers from a factory instance.
+
+    Falls back to a lazy default instance for parametrize collection.
+    """
+
+    _mcp = None
+
+    def __getattr__(self, name: str):
+        global _DEFAULT_MCP
+        if hasattr(_srv_mod, name):
+            return getattr(_srv_mod, name)
+        mcp = type(self)._mcp
+        if mcp is None:
+            if _DEFAULT_MCP is None:
+                _DEFAULT_MCP = create_mcp_app()
+            mcp = _DEFAULT_MCP
+        if hasattr(mcp, name):
+            return getattr(mcp, name)
+        if hasattr(mcp, f"_{name}"):
+            return getattr(mcp, f"_{name}")
+        tools = mcp._tool_manager._tools
+        if name in tools:
+            return tools[name]
+        raise AttributeError(f"_Server has no attribute '{name}'")
+
+
+server = _Server()
+
+
+@pytest.fixture(autouse=True)
+def _fresh_mcp():
+    _Server._mcp = create_mcp_app()
+    yield
+    _Server._mcp = None
 
 
 def _make_canvas(canvas_id: str = "c1") -> MagicMock:

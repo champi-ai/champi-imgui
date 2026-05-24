@@ -159,10 +159,11 @@ wheels = [
 
 [[package]]
 name = "champi-imgui"
-version = "1.17.0"
+version = "1.18.0"
 source = { editable = "." }
 dependencies = [
     { name = "blinker" },
+    { name = "click" },
     { name = "fastmcp" },
     { name = "imgui-bundle" },
     { name = "loguru" },
@@ -217,6 +218,7 @@ requires-dist = [
     { name = "champi-imgui", extras = ["dev"], marker = "extra == 'all'" },
     { name = "champi-ipc", marker = "extra == 'ecosystem'", directory = "../champi-ipc" },
     { name = "champi-signals", marker = "extra == 'ecosystem'", directory = "../champi-signals" },
+    { name = "click", specifier = ">=8.0" },
     { name = "commitizen", marker = "extra == 'dev'", specifier = ">=3.0.0" },
     { name = "detect-secrets", marker = "extra == 'dev'", specifier = ">=1.4.0" },
     { name = "fastmcp", specifier = ">=2.12.0" },
