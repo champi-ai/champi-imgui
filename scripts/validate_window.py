@@ -12,7 +12,7 @@ from champi_imgui.core.canvas import CanvasManager
 from champi_imgui.widgets.basic import ButtonWidget, TextWidget
 from champi_imgui.widgets.container import WindowWidget
 
-SCREENSHOT_PATH = "../champi_validation.png"
+SCREENSHOT_PATH = "/tmp/champi_validation.png"
 
 
 def main() -> int:

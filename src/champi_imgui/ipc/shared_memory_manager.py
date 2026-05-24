@@ -63,7 +63,7 @@ class SharedMemoryManager:
                 name=cmd_name, create=True, size=MAX_COMMAND_SIZE
             )
             # Initialize with zeros
-            self.cmd_region.buf[:] = bytes(MAX_COMMAND_SIZE)
+            self.cmd_region.buf[:MAX_COMMAND_SIZE] = bytes(MAX_COMMAND_SIZE)
             logger.debug(f"Created command region: {cmd_name}")
         except FileExistsError:
             # Region already exists, attach to it
@@ -80,7 +80,7 @@ class SharedMemoryManager:
                 create=True,
                 size=8,  # Just sequence number
             )
-            self.ack_region.buf[:] = bytes(8)
+            self.ack_region.buf[:8] = bytes(8)
             logger.debug(f"Created ACK region: {ack_name}")
         except FileExistsError:
             logger.warning(f"ACK region {ack_name} already exists, attaching instead")
@@ -162,7 +162,7 @@ class SharedMemoryManager:
             try:
                 command_data = unpack_command(data)
                 # Clear the command region after reading
-                self.cmd_region.buf[:] = bytes(MAX_COMMAND_SIZE)
+                self.cmd_region.buf[:MAX_COMMAND_SIZE] = bytes(MAX_COMMAND_SIZE)
                 logger.debug(
                     f"Read command {command_data.command_type.name} (seq={command_data.seq_num})"
                 )
@@ -170,7 +170,7 @@ class SharedMemoryManager:
             except (ValueError, struct.error) as e:
                 logger.error(f"Error unpacking command: {e}")
                 # Clear invalid data
-                self.cmd_region.buf[:] = bytes(MAX_COMMAND_SIZE)
+                self.cmd_region.buf[:MAX_COMMAND_SIZE] = bytes(MAX_COMMAND_SIZE)
                 return None
 
     def write_ack(self, seq_num: int) -> None:
@@ -216,7 +216,7 @@ class SharedMemoryManager:
             try:
                 seq_num = unpack_ack(data)
                 # Clear ACK after reading
-                self.ack_region.buf[:] = bytes(8)
+                self.ack_region.buf[:8] = bytes(8)
                 logger.debug(f"Read ACK for seq={seq_num}")
                 return seq_num
             except struct.error as e:
