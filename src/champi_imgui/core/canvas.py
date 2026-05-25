@@ -1,7 +1,7 @@
 """Canvas management with IPC-based rendering.
 
-Canvas runs in a separate thread, processing commands via shared memory
-from the MCP server.
+All canvases share a single persistent render loop (owned by CanvasManager).
+Each Canvas renders as an ImGui window inside that loop.
 
 Note: Screenshot capture uses GDK (PyGObject) as primary path and xwd/ImageMagick
 as fallback. Wayland-native (non-XWayland) is out of scope.
@@ -9,6 +9,7 @@ as fallback. Wayland-native (non-XWayland) is out of scope.
 
 import subprocess
 import threading
+from collections.abc import Callable
 from typing import Any, TypedDict
 
 from imgui_bundle import hello_imgui, imgui
@@ -63,13 +64,11 @@ class Canvas:
         self.shm_manager = SharedMemoryManager(name_prefix=f"canvas_{canvas_id}")
         self.widget_registry = WidgetRegistry()
 
-        # Thread control
         self._running = False
-        self._render_thread: threading.Thread | None = None
         self._render_error: Exception | None = None
 
-        # X11 window ID, populated after the render thread initialises the window
-        self._window_id: int | None = None
+        # Injected by CanvasManager so is_render_healthy() can probe the shared loop.
+        self._loop_healthy: Callable[[], bool] = lambda: False
 
         # Screenshot request: set by request_screenshot(), consumed in render thread
         self._screenshot_request: _ScreenshotRequest | None = None
@@ -85,54 +84,28 @@ class Canvas:
         logger.info(f"Canvas '{canvas_id}' initialized with shared memory")
 
     def get_window_id(self) -> int | None:
-        """Return the X11 window ID for this canvas, or None if unavailable.
-
-        The value is populated after the render thread initialises the GLFW
-        window.  It will be None on Wayland-native sessions or in headless
-        environments.
-
-        Returns:
-            X11 window ID as an integer, or None.
-        """
-        return self._window_id
+        """Return None — window ID is owned by the shared CanvasManager render loop."""
+        return None
 
     def run_async(self) -> None:
-        """Start canvas in background thread (non-blocking).
-
-        Window appears immediately and begins processing commands.
-        """
+        """Mark canvas as active so the shared render loop will render it."""
         if self._running:
             logger.warning(f"Canvas '{self.state.canvas_id}' already running")
             return
-
         self._running = True
-        self._render_thread = threading.Thread(
-            target=self._render_loop, daemon=True, name=f"Canvas-{self.state.canvas_id}"
-        )
-        self._render_thread.start()
-        logger.info(f"Canvas '{self.state.canvas_id}' started in background thread")
+        logger.info(f"Canvas '{self.state.canvas_id}' activated for rendering")
 
     def is_render_healthy(self) -> bool:
-        """Return True when the render thread is alive and has not crashed."""
-        return (
-            self._running
-            and self._render_thread is not None
-            and self._render_thread.is_alive()
-            and self._render_error is None
-        )
+        """Return True when the shared render loop is alive and this canvas has no error."""
+        return self._running and self._loop_healthy() and self._render_error is None
 
     def stop(self) -> None:
-        """Stop canvas rendering and cleanup."""
+        """Mark canvas inactive and release shared memory."""
         if not self._running:
             return
-
         self._running = False
-        if self._render_thread is not None:
-            self._render_thread.join(timeout=2.0)
-            logger.info(f"Canvas '{self.state.canvas_id}' stopped")
-
-        # Cleanup shared memory
         self.shm_manager.cleanup()
+        logger.info(f"Canvas '{self.state.canvas_id}' stopped")
 
     def add_widget(self, widget: Widget) -> None:
         """Add a widget to the canvas registry.
@@ -173,66 +146,13 @@ class Canvas:
             )
         return removed
 
-    def _render_loop(self) -> None:
-        """Main render loop (runs in background thread).
-
-        Event-driven: polls for commands and renders UI accordingly.
-        """
-        # Configure HelloImGui runner params
-        runner_params = hello_imgui.RunnerParams()
-        runner_params.app_window_params.window_title = self.state.title
-        runner_params.app_window_params.window_geometry.size = self.state.size
-
-        # FPS idling configuration (event-driven, not continuous)
-        runner_params.fps_idling.enable_idling = True
-        runner_params.fps_idling.fps_idle = 10  # Low FPS when idle
-
-        # ImPlot context — must be created after ImGui init on the render thread
-        from imgui_bundle import implot
-
-        _implot_ctx: object = None
-
-        def _post_init() -> None:
-            nonlocal _implot_ctx
-            _implot_ctx = implot.create_context()
-            try:
-                from imgui_bundle import glfw_utils
-
-                glfw_window = glfw_utils.glfw_window_hello_imgui()
-                import glfw
-
-                self._window_id = glfw.get_x11_window(glfw_window)
-            except Exception as e:
-                logger.debug(f"Could not obtain X11 window id: {e}")
-
-        def _before_exit() -> None:
-            if _implot_ctx is not None:
-                implot.destroy_context(_implot_ctx)
-            self._on_exit()
-
-        # Callbacks
-        runner_params.callbacks.post_init = _post_init
-        runner_params.callbacks.show_gui = self._render_frame
-        runner_params.callbacks.before_exit = _before_exit
-
-        # Run ImGui app (blocking until window closed)
-        try:
-            hello_imgui.run(runner_params)
-        except Exception as e:
-            self._render_error = e
-            logger.error(f"Render loop crashed for '{self.state.canvas_id}': {e}")
-        finally:
-            self._running = False
-
     def _render_frame(self) -> None:
-        """Render a single frame (called by ImGui loop).
-
-        Processes commands from shared memory and renders UI.
-        """
-        # Process pending commands
+        """Render a single frame — called by the shared CanvasManager render loop."""
         self._process_commands()
 
-        # Render canvas content
+        imgui.set_next_window_size(
+            imgui.ImVec2(*self.state.size), imgui.Cond_.first_use_ever
+        )
         imgui.begin(
             self.state.title,
             flags=imgui.WindowFlags_.no_collapse,
@@ -275,8 +195,8 @@ class Canvas:
                 req["result"] = {"path": filepath}
                 return
 
-            # Fall back to X11-based methods.
-            win_id = self._window_id
+            # Fall back to X11-based methods — not available (shared window).
+            win_id = None
             if win_id is None:
                 req["result"] = {
                     "success": False,
@@ -660,90 +580,133 @@ class Canvas:
 
 
 class CanvasManager:
-    """Manages multiple Canvas instances.
+    """Manages multiple Canvas instances sharing a single persistent render loop.
 
-    Provides centralized access to all canvases and ensures proper cleanup.
+    hello_imgui.run() is a process-level singleton — calling it more than once
+    crashes with "Already initialized a platform backend!".  CanvasManager owns
+    exactly one render thread; every Canvas is an ImGui window inside that loop.
     """
 
     def __init__(self):
-        """Initialize canvas manager."""
         self.canvases: dict[str, Canvas] = {}
+        self._render_thread: threading.Thread | None = None
+        self._loop_running = False
+        self._implot_ctx: object = None
+        self._window_id: int | None = None
         logger.info("CanvasManager initialized")
+
+    # ------------------------------------------------------------------
+    # Shared render loop
+    # ------------------------------------------------------------------
+
+    def is_loop_healthy(self) -> bool:
+        return (
+            self._loop_running
+            and self._render_thread is not None
+            and self._render_thread.is_alive()
+        )
+
+    def _start_render_loop(self) -> None:
+        if self.is_loop_healthy():
+            return
+        self._loop_running = False
+        self._render_thread = threading.Thread(
+            target=self._render_loop, daemon=True, name="CanvasRenderThread"
+        )
+        self._render_thread.start()
+        logger.info("Shared canvas render loop started")
+
+    def _render_loop(self) -> None:
+        from imgui_bundle import implot
+
+        runner_params = hello_imgui.RunnerParams()
+        runner_params.app_window_params.window_title = "champi-imgui"
+        runner_params.app_window_params.window_geometry.size = (1600, 900)
+        runner_params.fps_idling.enable_idling = True
+        runner_params.fps_idling.fps_idle = 10
+
+        def _post_init() -> None:
+            self._loop_running = True
+            self._implot_ctx = implot.create_context()
+            try:
+                import glfw
+                from imgui_bundle import glfw_utils
+
+                glfw_window = glfw_utils.glfw_window_hello_imgui()
+                self._window_id = glfw.get_x11_window(glfw_window)
+            except Exception as e:
+                logger.debug(f"Could not obtain X11 window id: {e}")
+
+        def _before_exit() -> None:
+            if self._implot_ctx is not None:
+                implot.destroy_context(self._implot_ctx)
+                self._implot_ctx = None
+            for canvas in self.canvases.values():
+                canvas._running = False
+            self._loop_running = False
+
+        runner_params.callbacks.post_init = _post_init
+        runner_params.callbacks.show_gui = self._render_all_canvases
+        runner_params.callbacks.before_exit = _before_exit
+
+        try:
+            hello_imgui.run(runner_params)
+        except Exception as e:
+            logger.error(f"Shared render loop crashed: {e}")
+            for canvas in self.canvases.values():
+                if canvas._render_error is None:
+                    canvas._render_error = e
+        finally:
+            self._loop_running = False
+
+    def _render_all_canvases(self) -> None:
+        for canvas in list(self.canvases.values()):
+            if canvas._running:
+                canvas._render_frame()
+
+    # ------------------------------------------------------------------
+    # Canvas lifecycle
+    # ------------------------------------------------------------------
 
     def create_canvas(
         self, canvas_id: str, auto_start: bool = True, **kwargs: Any
     ) -> Canvas:
-        """Create a new canvas.
-
-        Args:
-            canvas_id: Unique identifier for canvas
-            auto_start: Whether to automatically start rendering
-            **kwargs: Canvas state parameters
-
-        Returns:
-            Created Canvas instance
-
-        Raises:
-            ValueError: If canvas with same ID already exists
-        """
         if canvas_id in self.canvases:
-            msg = f"Canvas '{canvas_id}' already exists"
-            raise ValueError(msg)
+            raise ValueError(f"Canvas '{canvas_id}' already exists")
 
         canvas = Canvas(canvas_id, **kwargs)
+        canvas._loop_healthy = self.is_loop_healthy
         self.canvases[canvas_id] = canvas
 
         if auto_start:
-            canvas.run_async()
+            canvas._running = True
+            self._start_render_loop()
 
         logger.info(f"Created canvas '{canvas_id}' (auto_start={auto_start})")
         return canvas
 
     def get_canvas(self, canvas_id: str) -> Canvas | None:
-        """Get canvas by ID.
-
-        Args:
-            canvas_id: Canvas identifier
-
-        Returns:
-            Canvas instance or None if not found
-        """
         return self.canvases.get(canvas_id)
 
     def list_canvases(self) -> list[str]:
-        """List all canvas IDs.
-
-        Returns:
-            List of canvas IDs
-        """
         return list(self.canvases.keys())
 
     def ensure_canvas_running(self, canvas_id: str) -> bool:
-        """Ensure canvas is running.
-
-        Args:
-            canvas_id: Canvas identifier
-
-        Returns:
-            True if canvas is running, False if not found
-        """
         canvas = self.get_canvas(canvas_id)
         if canvas is None:
             return False
-
         if not canvas._running:
-            canvas.run_async()
-
+            canvas._running = True
+        if not self.is_loop_healthy():
+            self._start_render_loop()
         return True
 
     def cleanup(self) -> None:
-        """Stop all canvases and cleanup resources."""
         logger.info("Cleaning up all canvases...")
-        for canvas_id, canvas in self.canvases.items():
+        for canvas_id, canvas in list(self.canvases.items()):
             try:
                 canvas.stop()
             except Exception as e:
                 logger.error(f"Error stopping canvas '{canvas_id}': {e}")
-
         self.canvases.clear()
         logger.info("All canvases cleaned up")
