@@ -741,8 +741,7 @@ def create_mcp_app(**overrides: Any) -> FastMCP:
                     "widgets": widgets,
                     "render": {
                         "is_healthy": canvas.is_render_healthy(),
-                        "thread_alive": canvas._render_thread is not None
-                        and canvas._render_thread.is_alive(),
+                        "thread_alive": canvas_manager.is_loop_healthy(),
                         "last_error": str(canvas._render_error)
                         if canvas._render_error is not None
                         else None,
