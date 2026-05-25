@@ -199,18 +199,16 @@ def test_theme_manager_diagnostics_after_register():
 # ──────────────────────── get_system_state tool ──────────────────────────────
 
 
-def _patch_managers(monkeypatch):
-    """Return a dict of minimal mock managers for server.main globals."""
-    from champi_imgui.server import main as m
+def _make_mcp_with_mock_managers():
+    """Build a minimal create_mcp_app call with all mock managers."""
+    from champi_imgui.api.server import create_mcp_app
 
     mock_canvas_mgr = MagicMock()
     mock_canvas_mgr.list_canvases.return_value = []
 
-    monkeypatch.setattr(m, "canvas_manager", mock_canvas_mgr)
-    monkeypatch.setattr(
-        m,
-        "animation_manager",
-        MagicMock(
+    return create_mcp_app(
+        canvas_manager=mock_canvas_mgr,
+        animation_manager=MagicMock(
             **{
                 "to_diagnostics.return_value": {
                     "active_count": 0,
@@ -219,11 +217,7 @@ def _patch_managers(monkeypatch):
                 }
             }
         ),
-    )
-    monkeypatch.setattr(
-        m,
-        "data_store",
-        MagicMock(
+        data_store=MagicMock(
             **{
                 "to_diagnostics.return_value": {
                     "key_count": 0,
@@ -232,16 +226,10 @@ def _patch_managers(monkeypatch):
                 }
             }
         ),
-    )
-    monkeypatch.setattr(
-        m,
-        "binding_manager",
-        MagicMock(**{"to_diagnostics.return_value": {"binding_count": 0, "paths": []}}),
-    )
-    monkeypatch.setattr(
-        m,
-        "layout_manager",
-        MagicMock(
+        binding_manager=MagicMock(
+            **{"to_diagnostics.return_value": {"binding_count": 0, "paths": []}}
+        ),
+        layout_manager=MagicMock(
             **{
                 "to_diagnostics.return_value": {
                     "mode": "free",
@@ -250,30 +238,16 @@ def _patch_managers(monkeypatch):
                 }
             }
         ),
-    )
-    monkeypatch.setattr(
-        m,
-        "theme_manager",
-        MagicMock(
+        theme_manager=MagicMock(
             **{"to_diagnostics.return_value": {"current": None, "available": []}}
         ),
-    )
-    monkeypatch.setattr(
-        m,
-        "template_manager",
-        MagicMock(**{"to_diagnostics.return_value": {"saved": [], "cached": []}}),
-    )
-    monkeypatch.setattr(
-        m,
-        "notification_manager",
-        MagicMock(
+        template_manager=MagicMock(
+            **{"to_diagnostics.return_value": {"saved": [], "cached": []}}
+        ),
+        notification_manager=MagicMock(
             **{"to_diagnostics.return_value": {"pending_count": 0, "notifications": []}}
         ),
-    )
-    monkeypatch.setattr(
-        m,
-        "event_queue",
-        MagicMock(
+        event_queue=MagicMock(
             **{
                 "to_diagnostics.return_value": {
                     "pending_count": 0,
@@ -283,15 +257,10 @@ def _patch_managers(monkeypatch):
         ),
     )
 
-    return mock_canvas_mgr
 
-
-def test_get_system_state_success(monkeypatch):
-    from champi_imgui.server import main as m
-
-    _patch_managers(monkeypatch)
-
-    result = m.get_system_state.fn()
+def test_get_system_state_success():
+    mcp = _make_mcp_with_mock_managers()
+    result = mcp._tool_manager._tools["get_system_state"].fn()
     assert result["success"] is True
     data = result["data"]
     assert "version" in data
@@ -306,12 +275,9 @@ def test_get_system_state_success(monkeypatch):
     assert "widget_updated" in data["signals"]
 
 
-def test_get_system_state_managers_keys(monkeypatch):
-    from champi_imgui.server import main as m
-
-    _patch_managers(monkeypatch)
-
-    result = m.get_system_state.fn()
+def test_get_system_state_managers_keys():
+    mcp = _make_mcp_with_mock_managers()
+    result = mcp._tool_manager._tools["get_system_state"].fn()
     managers = result["data"]["managers"]
     assert set(managers.keys()) == {
         "animations",
@@ -328,20 +294,20 @@ def test_get_system_state_managers_keys(monkeypatch):
 # ────────────────────────── get_canvas_diagnostics ───────────────────────────
 
 
-def test_get_canvas_diagnostics_not_found(monkeypatch):
-    from champi_imgui.server import main as m
+def test_get_canvas_diagnostics_not_found():
+    from champi_imgui.api.server import create_mcp_app
 
     mock_mgr = MagicMock()
     mock_mgr.get_canvas.return_value = None
-    monkeypatch.setattr(m, "canvas_manager", mock_mgr)
+    mcp = create_mcp_app(canvas_manager=mock_mgr)
 
-    result = m.get_canvas_diagnostics.fn("missing_canvas")
+    result = mcp._tool_manager._tools["get_canvas_diagnostics"].fn("missing_canvas")
     assert result["success"] is False
     assert "not found" in result["error"]
 
 
-def test_get_canvas_diagnostics_healthy_canvas(monkeypatch):
-    from champi_imgui.server import main as m
+def test_get_canvas_diagnostics_healthy_canvas():
+    from champi_imgui.api.server import create_mcp_app
 
     mock_widget = MagicMock()
     mock_widget.__class__.__name__ = "ButtonWidget"
@@ -362,9 +328,9 @@ def test_get_canvas_diagnostics_healthy_canvas(monkeypatch):
 
     mock_mgr = MagicMock()
     mock_mgr.get_canvas.return_value = mock_canvas
-    monkeypatch.setattr(m, "canvas_manager", mock_mgr)
+    mcp = create_mcp_app(canvas_manager=mock_mgr)
 
-    result = m.get_canvas_diagnostics.fn("canvas1")
+    result = mcp._tool_manager._tools["get_canvas_diagnostics"].fn("canvas1")
     assert result["success"] is True
     data = result["data"]
     assert data["canvas_id"] == "canvas1"

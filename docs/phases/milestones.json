@@ -9,5 +9,9 @@
   "Phase: MCP Render Fix": "phase:mcp-render-fix",
   "Phase: MCP System State Reporter": "phase:mcp-system-state",
   "Phase: IPC Prerequisite": "phase:ipc-prerequisite",
-  "Phase: champi-ai-cli Foundation": "phase:champi-ai-cli"
+  "Phase: champi-ai-cli Foundation": "phase:champi-ai-cli",
+  "Phase 1: API Factory": "phase:api-factory",
+  "Phase 2: CLI Rewrite": "phase:cli-rewrite",
+  "Phase 3: Test Migration": "phase:test-migration",
+  "Phase 4: Standard Doc": "phase:standard-doc"
 }

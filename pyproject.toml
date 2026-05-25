@@ -36,6 +36,7 @@ dependencies = [
     "numpy>=2.3.4",
     "pillow>=10.0.0",
     "mss>=9.0.0",
+    "click>=8.0",
 ]
 
 [project.optional-dependencies]
@@ -71,7 +72,7 @@ Issues = "https://github.com/champi-ai/champi-imgui/issues"
 Documentation = "https://github.com/champi-ai/champi-imgui/blob/main/README.md"
 
 [project.scripts]
-champi-imgui = "champi_imgui.cli:main"
+champi-imgui = "champi_imgui.cli:cli"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/champi_imgui"]
