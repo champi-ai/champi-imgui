@@ -57,6 +57,10 @@ def _has_xdg_runtime() -> bool:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.skipif(
+    not _has_display(),
+    reason="No display available — skipping env var audit (headless CI)",
+)
 def test_required_display_env_vars_present():
     """All three display env vars needed for MCP must be set in this process."""
     missing = []
@@ -160,6 +164,10 @@ def test_render_fails_without_xdg_runtime_dir(monkeypatch, tmp_path):
     )
 
 
+@pytest.mark.skipif(
+    not _has_display(),
+    reason="No display available — skipping env block recommendation (headless CI)",
+)
 def test_mcp_env_block_recommendation():
     """Documents the exact env block needed in the MCP config.
 
