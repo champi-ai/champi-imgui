@@ -301,7 +301,9 @@ def test_get_canvas_diagnostics_not_found():
     mock_mgr.get_canvas.return_value = None
     mcp = create_mcp_app(canvas_manager=mock_mgr)
 
-    result = mcp._local_provider._components["tool:get_canvas_diagnostics@"].fn("missing_canvas")
+    result = mcp._local_provider._components["tool:get_canvas_diagnostics@"].fn(
+        "missing_canvas"
+    )
     assert result["success"] is False
     assert "not found" in result["error"]
 
@@ -330,7 +332,9 @@ def test_get_canvas_diagnostics_healthy_canvas():
     mock_mgr.get_canvas.return_value = mock_canvas
     mcp = create_mcp_app(canvas_manager=mock_mgr)
 
-    result = mcp._local_provider._components["tool:get_canvas_diagnostics@"].fn("canvas1")
+    result = mcp._local_provider._components["tool:get_canvas_diagnostics@"].fn(
+        "canvas1"
+    )
     assert result["success"] is True
     data = result["data"]
     assert data["canvas_id"] == "canvas1"

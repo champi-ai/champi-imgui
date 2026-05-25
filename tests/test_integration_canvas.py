@@ -29,9 +29,11 @@ def live_canvas():
     from champi_imgui.api.server import create_mcp_app
 
     mcp = create_mcp_app()
+
     class _Tools:
         def __init__(self, m):
             self._c = m._local_provider._components
+
         def __getitem__(self, name):
             return self._c[f"tool:{name}@"]
 
