@@ -35,6 +35,8 @@ An MCP (Model Context Protocol) server that enables Large Language Models to cre
 
 The easiest way to use champi-imgui is via the `.mcp.json` config — no installation required. Copy [`.mcp.json.example`](.mcp.json.example) to `.mcp.json` in your project root, or add this to your existing config:
 
+**Wayland** (most modern Linux desktops):
+
 ```json
 {
   "mcpServers": {
@@ -45,11 +47,38 @@ The easiest way to use champi-imgui is via the `.mcp.json` config — no install
         "https://github.com/champi-ai/champi-imgui/releases/download/v1.19.3/champi_imgui-1.19.3-py3-none-any.whl",
         "champi-imgui",
         "serve"
-      ]
+      ],
+      "env": {
+        "WAYLAND_DISPLAY": "wayland-0",
+        "XDG_RUNTIME_DIR": "/run/user/1000"
+      }
     }
   }
 }
 ```
+
+**X11**:
+
+```json
+{
+  "mcpServers": {
+    "champi-imgui": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "https://github.com/champi-ai/champi-imgui/releases/download/v1.19.3/champi_imgui-1.19.3-py3-none-any.whl",
+        "champi-imgui",
+        "serve"
+      ],
+      "env": {
+        "DISPLAY": ":0"
+      }
+    }
+  }
+}
+```
+
+> **Note**: MCP clients strip the desktop session environment. The `env` block is required — without it canvas windows will not open. Replace `XDG_RUNTIME_DIR` with your actual user runtime dir (run `echo $XDG_RUNTIME_DIR` to find it).
 
 `uvx` downloads and runs the wheel directly from the GitHub release — no PyPI, no manual install step.
 

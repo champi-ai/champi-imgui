@@ -1,13 +1,24 @@
 """CLI entry point for champi-imgui.
 
 Required environment variables for canvas rendering:
-  DISPLAY        - X11 display socket (e.g. :0 or :1)
-  XAUTHORITY     - X11 auth cookie file
-  WAYLAND_DISPLAY - Wayland socket (alternative to DISPLAY)
+  DISPLAY          - X11 display socket (e.g. :0 or :1)
+  XAUTHORITY       - X11 auth cookie file (X11 only)
+  WAYLAND_DISPLAY  - Wayland socket name (e.g. wayland-0)
+  XDG_RUNTIME_DIR  - Runtime dir where the Wayland socket lives (Wayland only)
 
-When running as a systemd service add to [Service]:
-  Environment="DISPLAY=:0"
-  Environment="XAUTHORITY=/home/YOUR_USER/.Xauthority"
+MCP clients strip the desktop session environment.  Add an "env" block to your
+MCP server config so all required variables reach this process:
+
+  Wayland (recommended):
+    "env": {
+      "WAYLAND_DISPLAY": "wayland-0",
+      "XDG_RUNTIME_DIR": "/run/user/1000"
+    }
+
+  X11:
+    "env": {
+      "DISPLAY": ":0"
+    }
 """
 
 import os
@@ -32,13 +43,42 @@ def _configure_logger() -> None:
     )
 
 
-def _warn_display() -> None:
-    if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
-        logger.warning(
-            "Neither DISPLAY nor WAYLAND_DISPLAY is set — canvas windows will likely "
-            "fail to render. Set DISPLAY=:0 or ensure the display environment is "
-            "propagated to this process."
+def _check_display() -> None:
+    """Abort with a clear message when the display environment is unusable."""
+    display = os.environ.get("DISPLAY", "")
+    wayland = os.environ.get("WAYLAND_DISPLAY", "")
+    xdg = os.environ.get("XDG_RUNTIME_DIR", "")
+
+    if not display and not wayland:
+        click.echo(
+            "ERROR: Neither DISPLAY nor WAYLAND_DISPLAY is set.\n"
+            "Canvas windows cannot open without a display server.\n\n"
+            "Add an 'env' block to your MCP server config, for example:\n\n"
+            '  Wayland: "env": {"WAYLAND_DISPLAY": "wayland-0", "XDG_RUNTIME_DIR": "/run/user/1000"}\n'
+            '  X11:     "env": {"DISPLAY": ":0"}',
+            err=True,
         )
+        sys.exit(1)
+
+    if wayland and not xdg:
+        click.echo(
+            "ERROR: WAYLAND_DISPLAY is set but XDG_RUNTIME_DIR is missing.\n"
+            f"The Wayland socket '{wayland}' cannot be resolved without XDG_RUNTIME_DIR.\n\n"
+            "Add XDG_RUNTIME_DIR to your MCP server config 'env' block:\n\n"
+            f'  "env": {{"WAYLAND_DISPLAY": "{wayland}", "XDG_RUNTIME_DIR": "/run/user/1000"}}',
+            err=True,
+        )
+        sys.exit(1)
+
+    if wayland and xdg:
+        socket_path = os.path.join(xdg, wayland)
+        if not os.path.exists(socket_path):
+            click.echo(
+                f"ERROR: Wayland socket not found at {socket_path!r}.\n"
+                f"Verify XDG_RUNTIME_DIR={xdg!r} is correct for this user.",
+                err=True,
+            )
+            sys.exit(1)
 
 
 @click.group()
@@ -53,7 +93,7 @@ def serve() -> None:
     from champi_imgui.api.server import create_mcp_app
 
     _configure_logger()
-    _warn_display()
+    _check_display()
     mcp = create_mcp_app()
     mcp.run()
 
@@ -70,9 +110,9 @@ def demo(canvas_id: str, title: str, width: int, height: int) -> None:
     from champi_imgui.core.canvas import CanvasManager
 
     _configure_logger()
-    _warn_display()
+    _check_display()
     manager = CanvasManager()
-    manager.create_canvas(canvas_id, title=title, size=(width, height), auto_start=True)
+    manager.create_canvas(canvas_id, title=title, size=(800, 800), auto_start=True)
     click.echo(f"Canvas '{canvas_id}' open — Ctrl+C to exit")
     try:
         while True:
@@ -94,7 +134,7 @@ def validate() -> None:
     from champi_imgui.widgets.container import WindowWidget
 
     _configure_logger()
-    _warn_display()
+    _check_display()
     manager = CanvasManager()
 
     click.echo("Creating canvas...")
