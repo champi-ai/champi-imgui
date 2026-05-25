@@ -15,7 +15,7 @@ from champi_imgui.core.canvas import CanvasManager
 
 
 def _fn(mcp, name):
-    return mcp._tool_manager._tools[name].fn
+    return mcp._local_provider._components[f"tool:{name}@"].fn
 
 
 @pytest.fixture(autouse=True)

@@ -260,7 +260,7 @@ def _make_mcp_with_mock_managers():
 
 def test_get_system_state_success():
     mcp = _make_mcp_with_mock_managers()
-    result = mcp._tool_manager._tools["get_system_state"].fn()
+    result = mcp._local_provider._components["tool:get_system_state@"].fn()
     assert result["success"] is True
     data = result["data"]
     assert "version" in data
@@ -277,7 +277,7 @@ def test_get_system_state_success():
 
 def test_get_system_state_managers_keys():
     mcp = _make_mcp_with_mock_managers()
-    result = mcp._tool_manager._tools["get_system_state"].fn()
+    result = mcp._local_provider._components["tool:get_system_state@"].fn()
     managers = result["data"]["managers"]
     assert set(managers.keys()) == {
         "animations",
@@ -301,7 +301,9 @@ def test_get_canvas_diagnostics_not_found():
     mock_mgr.get_canvas.return_value = None
     mcp = create_mcp_app(canvas_manager=mock_mgr)
 
-    result = mcp._tool_manager._tools["get_canvas_diagnostics"].fn("missing_canvas")
+    result = mcp._local_provider._components["tool:get_canvas_diagnostics@"].fn(
+        "missing_canvas"
+    )
     assert result["success"] is False
     assert "not found" in result["error"]
 
@@ -330,7 +332,9 @@ def test_get_canvas_diagnostics_healthy_canvas():
     mock_mgr.get_canvas.return_value = mock_canvas
     mcp = create_mcp_app(canvas_manager=mock_mgr)
 
-    result = mcp._tool_manager._tools["get_canvas_diagnostics"].fn("canvas1")
+    result = mcp._local_provider._components["tool:get_canvas_diagnostics@"].fn(
+        "canvas1"
+    )
     assert result["success"] is True
     data = result["data"]
     assert data["canvas_id"] == "canvas1"
