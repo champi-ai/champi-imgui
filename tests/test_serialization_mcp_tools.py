@@ -34,9 +34,9 @@ class _Server:
             return getattr(mcp, name)
         if hasattr(mcp, f"_{name}"):
             return getattr(mcp, f"_{name}")
-        tools = mcp._tool_manager._tools
-        if name in tools:
-            return tools[name]
+        components = mcp._local_provider._components
+        if f"tool:{name}@" in components:
+            return components[f"tool:{name}@"]
         raise AttributeError(f"_Server has no attribute '{name}'")
 
 
