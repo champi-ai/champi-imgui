@@ -67,6 +67,9 @@ class Canvas:
         self._running = False
         self._render_error: Exception | None = None
 
+        # X11 window ID — None in the shared-loop architecture; settable for tests.
+        self._window_id: int | None = None
+
         # Injected by CanvasManager so is_render_healthy() can probe the shared loop.
         self._loop_healthy: Callable[[], bool] = lambda: False
 
@@ -84,8 +87,12 @@ class Canvas:
         logger.info(f"Canvas '{canvas_id}' initialized with shared memory")
 
     def get_window_id(self) -> int | None:
-        """Return None — window ID is owned by the shared CanvasManager render loop."""
-        return None
+        """Return the X11 window ID if set, or None.
+
+        In the shared render loop architecture this is always None at runtime;
+        it can be set externally for testing.
+        """
+        return self._window_id
 
     def run_async(self) -> None:
         """Mark canvas as active so the shared render loop will render it."""
@@ -195,8 +202,8 @@ class Canvas:
                 req["result"] = {"path": filepath}
                 return
 
-            # Fall back to X11-based methods — not available (shared window).
-            win_id = None
+            # Fall back to X11-based methods.
+            win_id = self._window_id
             if win_id is None:
                 req["result"] = {
                     "success": False,
