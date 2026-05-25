@@ -27,7 +27,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from champi_imgui.api.server import create_mcp_app
-from champi_imgui.core.canvas import Canvas, CanvasManager
+from champi_imgui.core.canvas import CanvasManager
 
 # ---------------------------------------------------------------------------
 # Helpers
