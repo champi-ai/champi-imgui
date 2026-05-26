@@ -27,7 +27,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from champi_imgui.api.server import create_mcp_app
-from champi_imgui.core.canvas import Canvas, CanvasManager
+from champi_imgui.core.canvas import CanvasManager
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -96,18 +96,17 @@ def test_wayland_socket_is_reachable():
 # ---------------------------------------------------------------------------
 
 
-def test_render_thread_captures_glfw_error():
-    """_render_error is set when hello_imgui.run raises an exception."""
+def test_render_loop_captures_glfw_error():
+    """_render_error is propagated to canvases when hello_imgui.run raises."""
     cid = f"dbg_{uuid.uuid4().hex[:8]}"
-    canvas = Canvas(cid)
-
     glfw_exc = RuntimeError("GLFW: Wayland: Failed to connect to display")
 
+    mgr = CanvasManager()
     with patch("champi_imgui.core.canvas.hello_imgui") as mock_hi:
         mock_hi.RunnerParams.return_value = MagicMock()
         mock_hi.run.side_effect = glfw_exc
-        canvas.run_async()
-        canvas._render_thread.join(timeout=3.0)
+        canvas = mgr.create_canvas(cid, auto_start=True)
+        mgr._render_thread.join(timeout=3.0)
 
     assert canvas._render_error is glfw_exc, (
         f"Expected _render_error to be set, got: {canvas._render_error!r}"

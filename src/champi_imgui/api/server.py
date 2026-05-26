@@ -629,9 +629,7 @@ def create_mcp_app(**overrides: Any) -> FastMCP:
             canvas = canvas_manager.get_canvas(canvas_id)
             if canvas is None:
                 return {"success": False, "error": f"Canvas '{canvas_id}' not found"}
-            thread_alive = (
-                canvas._render_thread is not None and canvas._render_thread.is_alive()
-            )
+            thread_alive = canvas_manager.is_loop_healthy()
             err = canvas._render_error
             return {
                 "success": True,
@@ -743,8 +741,7 @@ def create_mcp_app(**overrides: Any) -> FastMCP:
                     "widgets": widgets,
                     "render": {
                         "is_healthy": canvas.is_render_healthy(),
-                        "thread_alive": canvas._render_thread is not None
-                        and canvas._render_thread.is_alive(),
+                        "thread_alive": canvas_manager.is_loop_healthy(),
                         "last_error": str(canvas._render_error)
                         if canvas._render_error is not None
                         else None,
