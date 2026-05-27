@@ -19,6 +19,24 @@ from champi_imgui.ipc.structs import (
     unpack_command,
 )
 
+
+def _untrack_shm(shm: shared_memory.SharedMemory) -> None:
+    """Remove a SharedMemory object from Python's resource_tracker.
+
+    On macOS, resource_tracker registers every SharedMemory created with
+    create=True.  At process exit it warns about "leaked" objects and may
+    forcibly unlink them — which can kill the MCP stdio connection before the
+    server has finished shutting down.  We manage the lifecycle ourselves via
+    cleanup(), so we opt out of resource_tracker for all creator-side regions.
+    """
+    try:
+        from multiprocessing import resource_tracker
+
+        resource_tracker.unregister(f"/{shm.name}", "shared_memory")
+    except Exception:
+        pass
+
+
 # Maximum size for command region (use largest struct)
 MAX_COMMAND_SIZE = 512
 
@@ -62,6 +80,7 @@ class SharedMemoryManager:
             self.cmd_region = shared_memory.SharedMemory(
                 name=cmd_name, create=True, size=MAX_COMMAND_SIZE
             )
+            _untrack_shm(self.cmd_region)
             # Initialize with zeros
             self.cmd_region.buf[:MAX_COMMAND_SIZE] = bytes(MAX_COMMAND_SIZE)
             logger.debug(f"Created command region: {cmd_name}")
@@ -80,6 +99,7 @@ class SharedMemoryManager:
                 create=True,
                 size=8,  # Just sequence number
             )
+            _untrack_shm(self.ack_region)
             self.ack_region.buf[:8] = bytes(8)
             logger.debug(f"Created ACK region: {ack_name}")
         except FileExistsError:

@@ -3768,6 +3768,7 @@ def create_mcp_app(**overrides: Any) -> FastMCP:
                 }
             )
             widget.state.properties["strokes"] = strokes
+            canvas._wake_render()
             return {
                 "success": True,
                 "data": {"widget_id": widget_id, "stroke_count": len(strokes)},
