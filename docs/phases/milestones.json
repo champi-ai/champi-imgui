@@ -14,5 +14,7 @@
   "Phase 2: CLI Rewrite": "phase:cli-rewrite",
   "Phase 3: Test Migration": "phase:test-migration",
   "Phase 4: Standard Doc": "phase:standard-doc",
-  "Phase: FastMCP 3.2 Compatibility": "phase:fastmcp-3-compat"
+  "Phase: FastMCP 3.2 Compatibility": "phase:fastmcp-3-compat",
+  "Phase: Drawing & SHM Bug Spike": "phase:drawing-shm-spike",
+  "Phase: Drawing & SHM Bug Fix": "phase:drawing-shm-fix"
 }

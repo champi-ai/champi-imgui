@@ -160,23 +160,24 @@ class Canvas:
         imgui.set_next_window_size(
             imgui.ImVec2(*self.state.size), imgui.Cond_.first_use_ever
         )
-        imgui.begin(
+        expanded = imgui.begin(
             self.state.title,
             flags=imgui.WindowFlags_.no_collapse,
         )
 
-        # Render all registered widgets (skip widgets owned by a parent container)
-        for widget in self.widget_registry.get_all().values():
-            if widget._parent_id is not None:
-                continue
-            try:
-                widget.render()
-            except Exception as e:
-                import traceback
+        if expanded:
+            # Render all registered widgets (skip widgets owned by a parent container)
+            for widget in self.widget_registry.get_all().values():
+                if widget._parent_id is not None:
+                    continue
+                try:
+                    widget.render()
+                except Exception as e:
+                    import traceback
 
-                logger.error(
-                    f"Error rendering widget '{widget.widget_id}': {e}\n{traceback.format_exc()}"
-                )
+                    logger.error(
+                        f"Error rendering widget '{widget.widget_id}': {e}\n{traceback.format_exc()}"
+                    )
 
         imgui.end()
         self._handle_screenshot()

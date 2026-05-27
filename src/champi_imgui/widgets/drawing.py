@@ -109,6 +109,11 @@ class DrawingWidget(Widget):
 
         draw_list = imgui.get_window_draw_list()
 
+        # Clip all drawing to the canvas bounds so nothing bleeds outside the area.
+        # This is the standard ImGui custom-canvas pattern and is required for draw
+        # commands to render correctly inside imgui-bundle windows.
+        draw_list.push_clip_rect(canvas_min, canvas_max, True)
+
         # Draw canvas background
         draw_list.add_rect_filled(
             canvas_min,
@@ -151,6 +156,8 @@ class DrawingWidget(Widget):
 
         # Draw text annotations
         self._draw_annotations(draw_list, canvas_min)
+
+        draw_list.pop_clip_rect()
 
         # Handle mouse input — must come after invisible_button for is_item_hovered
         if imgui.is_item_hovered():
