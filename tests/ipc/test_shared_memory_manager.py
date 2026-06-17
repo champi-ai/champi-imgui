@@ -13,12 +13,11 @@ introduced by the fix for #182:
 
 import uuid
 from multiprocessing import shared_memory as shm_lib
-from unittest.mock import call, patch
+from unittest.mock import patch
 
 import pytest
 
 from champi_imgui.ipc.shared_memory_manager import SharedMemoryManager
-
 
 # ---------------------------------------------------------------------------
 # Test 1 — cleanup() removes all shared-memory regions
