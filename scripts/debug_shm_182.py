@@ -134,7 +134,9 @@ def run_lifecycle_trace() -> int:
         # ------------------------------------------------------------------
         # STEP 2: Create regions and verify resource_tracker.unregister is called
         # ------------------------------------------------------------------
-        print("[2] create_regions() — regions created, resource_tracker opted out (fix)")
+        print(
+            "[2] create_regions() — regions created, resource_tracker opted out (fix)"
+        )
 
         # Patch multiprocessing.resource_tracker.unregister to spy on calls.
         # We patch the module-level function that _untrack_shm() reaches through:
@@ -223,7 +225,9 @@ def run_lifecycle_trace() -> int:
     print("=== All lifecycle assertions passed ===")
     print()
     print("Lifecycle summary:")
-    print("  create_regions()          -> regions appear in OS, resource_tracker opted out")
+    print(
+        "  create_regions()          -> regions appear in OS, resource_tracker opted out"
+    )
     print("  buf write/read            -> raw buffer round-trip works correctly")
     print("  cleanup()                 -> regions unlinked by application, not tracker")
     print()
