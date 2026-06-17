@@ -76,7 +76,11 @@ def _print_state_summary(widget: DrawingWidget) -> None:
     print(f"  annotations  : {len(annotations)}")
 
     for i, shape in enumerate(shapes):
-        coords = {k: v for k, v in shape.items() if k not in ("type", "color", "thickness", "filled")}
+        coords = {
+            k: v
+            for k, v in shape.items()
+            if k not in ("type", "color", "thickness", "filled")
+        }
         print(
             f"    shape[{i}] type={shape['type']!r}  filled={shape.get('filled')}  "
             f"color={shape['color']}  thickness={shape.get('thickness')}  "
@@ -87,7 +91,9 @@ def _print_state_summary(widget: DrawingWidget) -> None:
     # ImDrawList.vtx_buffer_size / idx_buffer_size after the clip-rect block.
     expected_vtx = 4 + 4 * len(shapes)  # background rect + 4 verts per rect shape
     expected_idx = 6 + 6 * len(shapes)  # 6 indices per quad
-    print(f"  draw_list (simulated, post-fix): vtx_buffer_size~={expected_vtx}  idx_buffer_size~={expected_idx}")
+    print(
+        f"  draw_list (simulated, post-fix): vtx_buffer_size~={expected_vtx}  idx_buffer_size~={expected_idx}"
+    )
 
 
 def main() -> int:
