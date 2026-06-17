@@ -10,7 +10,6 @@ from unittest.mock import MagicMock, patch
 
 from champi_imgui.widgets.drawing import DrawingWidget
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
