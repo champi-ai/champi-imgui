@@ -7,12 +7,14 @@ This module provides widgets for freehand drawing and whiteboard interaction:
 """
 
 import math
+import os
 import time
 from typing import Any
 
 from imgui_bundle import imgui
 from loguru import logger
 
+from champi_imgui.core.state import canvas_updated
 from champi_imgui.core.widget import Widget
 
 AUTHOR_COLORS: dict[str, tuple[float, float, float, float]] = {
@@ -113,6 +115,35 @@ class DrawingWidget(Widget):
         # This is the standard ImGui custom-canvas pattern and is required for draw
         # commands to render correctly inside imgui-bundle windows.
         draw_list.push_clip_rect(canvas_min, canvas_max, True)
+
+        if os.environ.get("CHAMPI_DEBUG_DRAWING"):
+            _shapes: list[dict[str, Any]] = self.state.properties.get("shapes", [])
+            _annotations: list[dict[str, Any]] = self.state.properties.get(
+                "annotations", []
+            )
+            _splitter = getattr(draw_list, "_splitter", None)
+            _channel_count: int | None = (
+                getattr(_splitter, "_count", None)
+                if _splitter is not None
+                else None
+            )
+            _clip_min = draw_list.get_clip_rect_min()
+            _clip_max = draw_list.get_clip_rect_max()
+            logger.debug(
+                "DrawingWidget.render() widget={} | channels={} | "
+                "clip=({:.1f},{:.1f})-({:.1f},{:.1f}) | "
+                "strokes={} shapes={} annotations={} | canvas_updated_receivers={}",
+                self.widget_id,
+                _channel_count,
+                _clip_min.x,
+                _clip_min.y,
+                _clip_max.x,
+                _clip_max.y,
+                len(strokes),
+                len(_shapes),
+                len(_annotations),
+                len(canvas_updated.receivers),
+            )
 
         # Draw canvas background
         draw_list.add_rect_filled(
