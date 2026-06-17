@@ -53,7 +53,7 @@ import sys
 # visible at module load time (mirrors the CHAMPI_DEBUG_DRAWING=1 CLI flag).
 os.environ.setdefault("CHAMPI_DEBUG_DRAWING", "1")
 
-from champi_imgui.widgets.drawing import DrawingWidget  # noqa: E402
+from champi_imgui.widgets.drawing import DrawingWidget
 
 
 def _print_state_summary(widget: DrawingWidget) -> None:
