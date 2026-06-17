@@ -80,7 +80,6 @@ import sys
 from multiprocessing import shared_memory
 from unittest.mock import patch
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
