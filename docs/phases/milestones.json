@@ -16,5 +16,8 @@
   "Phase 4: Standard Doc": "phase:standard-doc",
   "Phase: FastMCP 3.2 Compatibility": "phase:fastmcp-3-compat",
   "Phase: Drawing & SHM Bug Spike": "phase:drawing-shm-spike",
-  "Phase: Drawing & SHM Bug Fix": "phase:drawing-shm-fix"
+  "Phase: Drawing & SHM Bug Fix": "phase:drawing-shm-fix",
+  "Phase: Prompt Bridge 1 — Broker, Widget, Long-Poll Tools": "phase:prompt-bridge-1",
+  "Phase: Prompt Bridge 2 — Host Window Overlay": "phase:prompt-bridge-2",
+  "Phase: Prompt Bridge 3 — Sampling, Serialization, Docs": "phase:prompt-bridge-3"
 }
