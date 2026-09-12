@@ -133,9 +133,11 @@ def test_non_creator_cleanup_does_not_remove_regions() -> None:
     attacher = SharedMemoryManager(name_prefix=prefix)
     attacher.attach_regions()
 
-    # Non-creator cleanup must close file descriptors but not unlink.
-    attacher.cmd_region.close()  # type: ignore[union-attr]
-    attacher.ack_region.close()  # type: ignore[union-attr]
+    # Non-creator cleanup() must close file descriptors but must not unlink,
+    # since is_creator is False for an attacher — exercise cleanup() itself
+    # rather than closing the regions manually, so the is_creator gate in
+    # SharedMemoryManager.cleanup() is actually under test.
+    attacher.cleanup()
 
     cmd_name = f"{prefix}_cmd"
     ack_name = f"{prefix}_ack"
