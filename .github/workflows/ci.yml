@@ -104,7 +104,10 @@ jobs:
     - name: Run IPC tests
       run: |
         if [ -d tests/ipc ]; then
-          uv run pytest tests/ipc/ -v
+          # --no-cov: pyproject.toml's addopts enforce --cov-fail-under=67 against
+          # the whole package, which a tests/ipc/-only run can never reach. Full
+          # coverage accounting is already done by the Linux job.
+          uv run pytest tests/ipc/ -v --no-cov
         else
           echo "tests/ipc/ not yet present — skipping (activates after #191 is merged)"
         fi
