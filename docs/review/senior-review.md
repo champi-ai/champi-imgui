@@ -1,39 +1,87 @@
-# Senior Review
+VERDICT: APPROVED
 
-## VERDICT: APPROVED
+## Blocking Issues
 
-## Summary
+None.
 
-Both specs are well-scoped and internally consistent. The approach is sound for the champi ecosystem.
+All five blocking issues from the prior review have been resolved:
 
-## Phase A: MCP Render Fix — no blocking issues
+1. `SamplingResult.text` nullability -- Section 5.1 now falls back to `str(result.result)`.
+2. `applied_seq` undefined -- Section 1.3 defines `_host_applied: threading.Event` with clear/set semantics; Section 1.6 makes `configure_host_window` async via `await asyncio.to_thread(_host_applied.wait, 1.0)`.
+3. GIL reliance undocumented -- Section 2.2 adds an explicit thread-safety note.
+4. `create_canvas` extension underspecified -- Section 1.5 now has the full tool signature, validation before creation, and `properties["window_flags"]` storage path.
+5. `_flags_from_names` validation location -- Section 1.5 calls it in the tool handler for validation and caches the result on the Canvas instance for the render thread.
 
-- Splitting UPDATE_STATE into UPDATE_TITLE + UPDATE_SIZE is the correct fix for the silent size-reset bug. Enum renumbering (SHUTDOWN 4→5) is safe since this is internal IPC.
-- RENDER_FRAME heartbeat via champi-ipc lane is the correct health check. `_render_thread.is_alive()` was insufficient and this replaces it properly.
-- `HAS_ECOSYSTEM` fallback pattern ensures standalone usage is not broken.
-- 2s timeout for RENDER_FRAME ACK on `create_canvas` is reasonable; will surface the DISPLAY propagation root cause clearly.
+## Non-Blocking Issues
 
-## Phase B: MCP System State Reporter — no blocking issues
+1. **`_submit()` calls `trigger_callback("prompt", request.to_dict())` on the render thread** -- `trigger_callback` pushes into `EventQueue`, which holds a `threading.Lock`. The lock is also acquired by `poll_events` on the MCP thread. Contention is low (bounded deque, fast append), but under rapid submit + poll the render thread could stall for the duration of one lock acquisition. Acceptable for the MVP; note for profiling later.
 
-- `to_diagnostics()` helpers are straightforward and appropriately scoped (5-15 lines each).
-- QUERY_STATE/STATE_RESPONSE lane pattern is the correct actor-boundary approach — reading Canvas state directly from the MCP thread would violate the lane model.
-- Adding QUERY_STATE=140 and STATE_RESPONSE=141 to champi-signals is a cross-repo change; must be done first as a prerequisite.
-- `@EventProcessor.emits_event` decoration is additive and non-breaking.
+2. **`update_prompt_button` tool excludes `position`, `size`, `parent_id`** -- Section 4.2 says "no position/size/parent_id". The existing generic `update_widget_properties` tool can handle those, but this means there is no single tool to fully reconfigure a prompt button. Consistent with how other widgets work (e.g. `add_button` has no `update_button`), but worth noting if users ask.
 
-## Phase C: champi-ai-cli Foundation — no blocking issues
+3. **`run_prompt_bridge` holds a tool call open for up to 3600 seconds** -- The spec documents this and recommends `timeout_seconds` <= client tool timeout. Stdio clients with short timeouts will silently disconnect. The `report_progress` call each iteration helps keep Streamable HTTP alive, but stdio has no progress channel. Consider adding a note that stdio clients should prefer the long-poll path.
 
-- Scope is appropriately narrow for a foundation phase: CLI, orchestrator, one working adapter, Jarvis demo.
-- `ModelAdapter` ABC is the right abstraction for model-agnostic operation.
-- The Jarvis demo is a concrete acceptance gate for the whole phase.
-- champi-ai-cli depends on champi-imgui phases A and B being done first (health lanes must exist for orchestrator to query).
+4. **No structured error type on `broker.respond()` exceptions** -- `respond()` raises `KeyError` for unknown IDs and `ValueError` for terminal states. The tool handler catches `Exception` generically. If the broker adds new exception types later, they will be caught by the same blanket handler. Fine for now; just a maintenance note.
 
-## Non-blocking notes
+5. **`_window_flags_cache` invalidation** -- Section 1.5 says the cache is invalidated "when `properties['window_flags']` changes via `update_canvas_state`". The existing `update_canvas_state` tool only handles `title` and `width/height` via shared memory commands. If `window_flags` is changed via a future `update_canvas_state` extension, the invalidation must be wired in at that point. Not a problem today since no tool currently mutates `window_flags` after creation.
 
-- Phase C depends on phases A and B being complete — schedule accordingly.
-- champi-signals QUERY_STATE/STATE_RESPONSE must be PR'd and merged before phase B can implement the Canvas lane handler.
-- The ecosystem optional extras in pyproject.toml use path references (`../champi-signals`) which work locally but will need PyPI references for production. Acceptable for this foundation phase.
+6. **`PromptButtonWidget.__init__` auto-subscribes to `["prompt", "response"]` events** -- If the event queue is not installed yet (e.g. widget created before `set_event_queue` is called), the subscription silently does nothing. In practice `create_mcp_app()` calls `set_event_queue()` before any tool can create widgets, so this is safe. But the guard "when an event queue is installed" (Section 3.3) should be an `if _event_queue is not None:` check, which the implementer needs to remember.
 
-## Labels to apply
+## API Contract Diff
 
-- champi-imgui: `enhancement`, `ipc`, `mcp`
-- champi-ai-cli: `new-package`, `ecosystem`
+```
+-- Host Window --
+[new] configure_host_window  -- both specs aligned; params, return shape, async behaviour match
+[new] get_host_window        -- both specs aligned
+
+-- Canvas (extended) --
+[mod] create_canvas          -- both specs add position + window_flags; backend fully specifies validation and storage
+[mod] get_canvas_info        -- both specs add prompt_bridge + host_window keys; backend confirms additive-only
+
+-- Prompt Bridge --
+[new] add_prompt_button      -- both specs aligned; frontend updated to include busy_label, submit_on_enter, clear_input_on_submit, response_max_height
+[new] update_prompt_button   -- both specs aligned
+[new] wait_for_prompt        -- both specs aligned
+[new] respond_to_prompt      -- both specs aligned
+[new] list_prompt_requests   -- both specs aligned
+[new] cancel_prompt_request  -- both specs aligned
+[new] run_prompt_bridge      -- both specs aligned
+[new] stop_prompt_bridge     -- both specs aligned
+[new] ui_prompt_loop (prompt)-- both specs aligned
+```
+
+## Data Model Review
+
+No database. In-memory dataclasses only:
+
+```
+[ok]  CanvasState        -- position field exists; window_flags in properties dict; round-trips via to_dict/from_dict
+[ok]  WidgetState        -- unchanged
+[new] HostWindowConfig   -- well-defined dataclass with to_dict(); partial-update merge documented
+[new] PromptRequest      -- well-defined dataclass with to_dict(); all 5 statuses have clear transitions
+[new] PromptStatus       -- enum with terminal states (ANSWERED, CANCELLED, EXPIRED) explicitly guarded
+[new] PromptBroker       -- bounded history, per-widget pending cap, TTL sweep in wait() and submit()
+```
+
+## Frontend Architecture Notes
+
+N/A -- no web frontend. The frontend spec correctly describes:
+- Visual state table covers all 5 PromptStatus values
+- TTL behaviour documented as server-wide broker config, not per-widget
+- Flood protection ("Too many pending requests") matches backend `max_pending_per_widget`
+- Tool contract table now includes all create-time params for `add_prompt_button`
+- `poll_events` visibility via auto-subscription documented
+
+## Backend Architecture Notes
+
+- **Thread model is sound**: render thread owns ImGui/GLFW; MCP tools use `asyncio.to_thread` for blocking broker calls; `configure_host_window` is properly async. No event loop blocking.
+- **`_host_applied: threading.Event`** is the correct primitive: simple, no spurious wakeup concerns, and `asyncio.to_thread(event.wait, timeout)` integrates cleanly with the event loop.
+- **`_flags_from_names` dual-call pattern** (validate in tool, cache in render) avoids both bad-input-reaching-render-thread and repeated string-to-flag conversion. Clean.
+- **`PromptBroker` lifecycle hooks** (`cancel_for_widget`, `cancel_for_canvas`) are wired into `remove_widget` and `shutdown_canvas`. Covers widget removal, canvas shutdown, and full cleanup.
+- **`sweep_expired()` in `wait()`** closes the gap where a stale request could be claimed after TTL.
+- **`max_pending_per_widget` cap** prevents render-thread flooding from rapid clicks. `submit()` returning `False` with a UI status message is the right feedback path.
+- **Sampling bridge `result.text` fallback** to `str(result.result)` handles structured output and None cases.
+- **`get_canvas_info` additive extension** preserves backward compatibility for existing callers.
+
+## Recommended Edits
+
+No blocking edits required.
