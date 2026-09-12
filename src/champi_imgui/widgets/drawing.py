@@ -123,9 +123,7 @@ class DrawingWidget(Widget):
             )
             _splitter = getattr(draw_list, "_splitter", None)
             _channel_count: int | None = (
-                getattr(_splitter, "_count", None)
-                if _splitter is not None
-                else None
+                getattr(_splitter, "_count", None) if _splitter is not None else None
             )
             _clip_min = draw_list.get_clip_rect_min()
             _clip_max = draw_list.get_clip_rect_max()
